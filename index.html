@@ -16,408 +16,561 @@
 </head>
 
 <body>
+    <div class="app-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <h2>Disk Scheduling</h2>
 
-    <!-- Section 1: Hero Section -->
-    <section class="hero-section" id="hero">
-        <div class="hero-content">
-            <h1 class="hero-title">Disk Scheduling Algorithms Visualizer</h1>
-            <p class="hero-subtitle">Interactive visualization of FCFS, SSTF, SCAN, C-SCAN and LOOK disk scheduling
-                algorithms.</p>
-            <a href="#simulator" class="glow-button">Start Simulation</a>
-        </div>
+            <h3>Algorithms</h3>
+            <ul>
+                <li><a href="#fcfs-results" class="active">FCFS</a></li>
+                <li><a href="#comparison">SSTF</a></li>
+                <li><a href="#comparison">SCAN</a></li>
+                <li><a href="#comparison">C-SCAN</a></li>
+                <li><a href="#comparison">LOOK</a></li>
+            </ul>
 
-        <!-- Rotating Hard Disk Platter Animation -->
-        <div class="disk-platter">
-            <div class="ring outer-ring"></div>
-            <div class="ring middle-ring"></div>
-            <div class="ring inner-ring"></div>
-            <div class="spindle"></div>
-            <div class="disk-head-arm"></div>
-        </div>
-    </section>
+            <h3>Tools</h3>
+            <ul>
+                <li><a href="#comparison">Algorithm Comparison</a></li>
+                <li><a href="#cpu-simulator">CPU Scheduling</a></li>
+            </ul>
 
-    <div class="container">
-        <!-- Section 2: Real Life Analogy -->
-        <section class="analogy-section">
-            <h2 class="section-title">Real Life Analogy</h2>
-            <div class="glass-card">
-                <h3>Queue at a Ticket Counter</h3>
-                <p>Imagine people standing in a queue at a ticket counter. People are served in the exact order they
-                    arrive.</p>
-                <div class="analogy-diagram">
-                    Person A &rarr; Person B &rarr; Person C
-                </div>
-                <p>In Operating Systems, the <strong>FCFS (First-Come, First-Served)</strong> disk scheduling algorithm
-                    works in the exact same way!</p>
-            </div>
-        </section>
+            <h3>Concepts</h3>
+            <ul>
+                <li><a href="#concepts">Disk Scheduling Concepts</a></li>
+            </ul>
+        </aside>
 
-        <!-- Section 3: Concepts -->
-        <section class="concepts-section">
-            <h2 class="section-title">Disk Scheduling Concepts</h2>
-            <div class="grid-layout">
-                <div class="glass-card concept-card">
-                    <h3>Disk Track</h3>
-                    <p>Numbered positions on the disk where data is stored (typically 0 to 199 in examples).</p>
+        <main class="main-workspace">
+            <!-- Section 1: Hero Section -->
+            <section class="hero-section" id="hero">
+                <div class="hero-content">
+                    <h1 class="hero-title">Disk Scheduling Algorithms Visualizer</h1>
+                    <p class="hero-subtitle">Interactive visualization of FCFS, SSTF, SCAN, C-SCAN and LOOK disk
+                        scheduling
+                        algorithms.</p>
+                    <a href="#simulator" class="glow-button">Start Simulation</a>
                 </div>
-                <div class="glass-card concept-card">
-                    <h3>Disk Head</h3>
-                    <p>The read/write mechanism that moves between tracks to access data.</p>
-                </div>
-                <div class="glass-card concept-card">
-                    <h3>Seek Time</h3>
-                    <p>The time taken for the head to move from the current track to the requested track. Large head
-                        movement increases disk access time.</p>
-                </div>
-                <div class="glass-card concept-card">
-                    <h3>Request Queue</h3>
-                    <p>The list of upcoming track access requests pending service.</p>
-                </div>
-            </div>
-            <div class="concept-visual">
-                <h3>Disk Tracks Map (0 - 199)</h3>
-                <div class="track-line-simple">
-                    <span class="track-label left">0</span>
-                    <span class="track-label right">199</span>
-                    <div class="head-marker" style="left: 25%;">Head</div>
-                </div>
-            </div>
-        </section>
 
-        <!-- Section 4: Algorithm Overview -->
-        <section class="overview-section">
-            <h2 class="section-title">Algorithms Overview</h2>
-            <div class="grid-layout cols-3">
-                <div class="glass-card algo-card">
-                    <h3>FCFS</h3>
-                    <p>Processes requests in the order they arrive.</p>
-                    <small>Head moves directly to next queued request.</small>
+                <!-- Rotating Hard Disk Platter Animation -->
+                <div class="disk-platter">
+                    <div class="ring outer-ring"></div>
+                    <div class="ring middle-ring"></div>
+                    <div class="ring inner-ring"></div>
+                    <div class="spindle"></div>
+                    <div class="disk-head-arm"></div>
                 </div>
-                <div class="glass-card algo-card">
-                    <h3>SSTF</h3>
-                    <p>Chooses the request closest to the current head position.</p>
-                    <small>Minimizes immediate seek time.</small>
-                </div>
-                <div class="glass-card algo-card">
-                    <h3>SCAN</h3>
-                    <p>Disk head moves like an elevator servicing requests in one direction to the end, then reverses.
-                    </p>
-                    <small>Also known as the Elevator algorithm.</small>
-                </div>
-                <div class="glass-card algo-card">
-                    <h3>C-SCAN</h3>
-                    <p>Disk head moves in one direction to the end, then jumps back to the beginning without servicing.
-                    </p>
-                    <small>Provides more uniform wait times.</small>
-                </div>
-                <div class="glass-card algo-card">
-                    <h3>LOOK</h3>
-                    <p>Similar to SCAN but stops at the last request instead of the disk edge.</p>
-                    <small>More efficient than standard SCAN.</small>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Section 5: FCFS Explanation -->
-        <section class="explanation-section" id="fcfs-explanation">
-            <h2 class="section-title">FCFS Algorithm Explanation</h2>
-            <div class="glass-card">
-                <h3>Steps</h3>
-                <ol>
-                    <li>Requests arrive in a queue.</li>
-                    <li>The disk head services them in arrival order.</li>
-                    <li>The head moves sequentially between tracks.</li>
-                    <li>Total head movement is calculated by summing absolute differences.</li>
-                </ol>
-                <div class="example-box">
-                    <h4>Example Input</h4>
-                    <p><strong>Initial Head Position:</strong> 53</p>
-                    <p><strong>Requests:</strong> 98, 183, 37, 122, 14, 124, 65</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Section 6: FCFS Simulator -->
-        <section class="simulator-section" id="simulator">
-            <h2 class="section-title">FCFS Disk Scheduling Simulator</h2>
-            <div class="glass-card sim-form-card">
-                <form id="fcfs-form">
-                    <div class="input-group">
-                        <label for="fcfs-head">Initial Head Position (0-199):</label>
-                        <input type="number" id="fcfs-head" min="0" max="199" value="53" required>
+            <!-- Section 2: Real Life Analogy -->
+            <section class="analogy-section">
+                <h2 class="section-title">Real Life Analogy</h2>
+                <div class="glass-card">
+                    <h3>Queue at a Ticket Counter</h3>
+                    <p>Imagine people standing in a queue at a ticket counter. People are served in the exact order they
+                        arrive.</p>
+                    <div class="analogy-diagram">
+                        Person A &rarr; Person B &rarr; Person C
                     </div>
-                    <div class="input-group">
-                        <label for="fcfs-requests">Track Request Sequence (comma separated):</label>
-                        <input type="text" id="fcfs-requests" value="98,183,37,122,14,124,65"
-                            pattern="^(\s*\d+\s*(,\s*\d+\s*)*)$" required>
-                    </div>
-                    <button type="submit" class="glow-button">Run FCFS Simulation</button>
-                </form>
-            </div>
-        </section>
+                    <p>In Operating Systems, the <strong>FCFS (First-Come, First-Served)</strong> disk scheduling
+                        algorithm
+                        works in the exact same way!</p>
+                </div>
+            </section>
 
-        <!-- Wrapper for FCFS Results Container -->
-        <div id="fcfs-results" class="results-container hidden">
-            <!-- Section 7: Disk Movement Visualization -->
-            <section class="visualization-section">
-                <h3 class="section-title">Disk Movement Visualization</h3>
-                <div class="glass-card visualization-card">
-                    <div class="track-viz-container" id="fcfs-viz-container">
-                        <!-- Canvas and DOM overlays generated here -->
-                        <canvas id="fcfs-canvas" width="800" height="200"></canvas>
-                        <div class="axis-labels">
-                            <span>0</span>
-                            <span>199</span>
+            <!-- Section 3: Concepts -->
+            <section class="concepts-section">
+                <h2 class="section-title">Disk Scheduling Concepts</h2>
+                <div class="grid-layout">
+                    <div class="glass-card concept-card">
+                        <h3>Disk Track</h3>
+                        <p>Numbered positions on the disk where data is stored (typically 0 to 199 in examples).</p>
+                    </div>
+                    <div class="glass-card concept-card">
+                        <h3>Disk Head</h3>
+                        <p>The read/write mechanism that moves between tracks to access data.</p>
+                    </div>
+                    <div class="glass-card concept-card">
+                        <h3>Seek Time</h3>
+                        <p>The time taken for the head to move from the current track to the requested track. Large head
+                            movement increases disk access time.</p>
+                    </div>
+                    <div class="glass-card concept-card">
+                        <h3>Request Queue</h3>
+                        <p>The list of upcoming track access requests pending service.</p>
+                    </div>
+                </div>
+                <div class="concept-visual">
+                    <h3>Disk Tracks Map (0 - 199)</h3>
+                    <div class="track-line-simple">
+                        <span class="track-label left">0</span>
+                        <span class="track-label right">199</span>
+                        <div class="head-marker" style="left: 25%;">Head</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Algorithm Overview -->
+            <section class="overview-section">
+                <h2 class="section-title">Algorithms Overview</h2>
+                <div class="grid-layout cols-3">
+                    <div class="glass-card algo-card">
+                        <h3>FCFS</h3>
+                        <p>Processes requests in the order they arrive.</p>
+                        <small>Head moves directly to next queued request.</small>
+                    </div>
+                    <div class="glass-card algo-card">
+                        <h3>SSTF</h3>
+                        <p>Chooses the request closest to the current head position.</p>
+                        <small>Minimizes immediate seek time.</small>
+                    </div>
+                    <div class="glass-card algo-card">
+                        <h3>SCAN</h3>
+                        <p>Disk head moves like an elevator servicing requests in one direction to the end, then
+                            reverses.
+                        </p>
+                        <small>Also known as the Elevator algorithm.</small>
+                    </div>
+                    <div class="glass-card algo-card">
+                        <h3>C-SCAN</h3>
+                        <p>Disk head moves in one direction to the end, then jumps back to the beginning without
+                            servicing.
+                        </p>
+                        <small>Provides more uniform wait times.</small>
+                    </div>
+                    <div class="glass-card algo-card">
+                        <h3>LOOK</h3>
+                        <p>Similar to SCAN but stops at the last request instead of the disk edge.</p>
+                        <small>More efficient than standard SCAN.</small>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5: FCFS Explanation -->
+            <section class="explanation-section" id="fcfs-explanation">
+                <h2 class="section-title">FCFS Algorithm Explanation</h2>
+                <div class="glass-card">
+                    <h3>Steps</h3>
+                    <ol>
+                        <li>Requests arrive in a queue.</li>
+                        <li>The disk head services them in arrival order.</li>
+                        <li>The head moves sequentially between tracks.</li>
+                        <li>Total head movement is calculated by summing absolute differences.</li>
+                    </ol>
+                    <div class="example-box">
+                        <h4>Example Input</h4>
+                        <p><strong>Initial Head Position:</strong> 53</p>
+                        <p><strong>Requests:</strong> 98, 183, 37, 122, 14, 124, 65</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: FCFS Simulator -->
+            <section class="simulator-section" id="simulator">
+                <h2 class="section-title">FCFS Disk Scheduling Simulator</h2>
+                <div class="glass-card sim-form-card">
+                    <form id="fcfs-form">
+                        <div class="input-group">
+                            <label for="fcfs-head">Initial Head Position (0-199):</label>
+                            <input type="number" id="fcfs-head" min="0" max="199" value="53" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="fcfs-requests">Track Request Sequence (comma separated):</label>
+                            <input type="text" id="fcfs-requests" value="98,183,37,122,14,124,65"
+                                pattern="^(\s*\d+\s*(,\s*\d+\s*)*)$" required>
+                        </div>
+                        <button type="submit" class="glow-button">Run FCFS Simulation</button>
+                    </form>
+                </div>
+            </section>
+
+            <div id="fcfs-results" class="results-container hidden">
+                <!-- Section 6.5: Playback Controls -->
+                <div class="playback-controls">
+                    <button type="button" id="play-btn" class="control-btn" disabled>&#9654; Play</button>
+                    <button type="button" id="pause-btn" class="control-btn" disabled>&#10096;&#10096; Pause</button>
+                    <button type="button" id="next-btn" class="control-btn" disabled>&#x23ED; Next</button>
+                    <button type="button" id="reset-btn" class="control-btn" disabled>&#10226; Reset</button>
+                </div>
+
+                <!-- Section 7: Disk Movement Visualization -->
+                <section class="visualization-section">
+                    <h3 class="section-title">Disk Movement Visualization</h3>
+
+                    <div class="glass-card visualization-card">
+                        <!-- Disk Head Slider Element -->
+                        <div class="slider-track-container" id="fcfs-slider-container">
+                            <div class="slider-tracker-text">Current Head Position: <span
+                                    id="fcfs-head-tracker">-</span></div>
+                            <div class="slider-track-bg">
+                                <span class="slider-track-label start">0</span>
+                                <span class="slider-track-label end">199</span>
+                                <div class="slider-head" id="fcfs-slider-head"></div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <div class="step-indicator hidden" id="fcfs-step-indicator">
+                                Step <span id="fcfs-step-count"
+                                    style="display:inline; font-weight:bold; color:var(--accent-2);">0</span> of <span
+                                    id="fcfs-step-total"
+                                    style="display:inline; font-weight:bold; color:var(--accent-2);">0</span>
+                                <span id="fcfs-step-details">Moving from - to - <br>Distance: - tracks</span>
+                            </div>
+                        </div>
+                        <div class="track-viz-container" id="fcfs-viz-container">
+                            <!-- Canvas and DOM overlays generated here -->
+                            <canvas id="fcfs-canvas" width="800" height="200"></canvas>
+                            <div class="axis-labels">
+                                <span>0</span>
+                                <span>199</span>
+                            </div>
+                        </div>
+
+                        <div class="viz-legend">
+                            <div class="legend-item">
+                                <div class="legend-dot dot-initial"></div> Initial Head Position
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-dot dot-pending"></div> Requested Track
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-dot dot-visited"></div> Visited Track
+                            </div>
+                            <div class="legend-item">
+                                <div class="line-path"></div> Movement Path
+                            </div>
+                        </div>
+                        <p class="viz-explanation">Animation showing step-by-step head movement servicing requests in
+                            exactly the arrival order.</p>
+                    </div>
+                </section>
+
+                <!-- Section 8: Track Servicing Order -->
+                <section class="order-section">
+                    <div class="glass-card text-center">
+                        <h3>Servicing Order</h3>
+                        <div class="servicing-path" id="fcfs-order-display">
+                            <!-- e.g. 53 -> 98 -> 183 -> 37 ... -->
+                        </div>
+                        <p><small>FCFS services requests exactly in the order they appear in the queue.</small></p>
+                    </div>
+                </section>
+
+                <!-- Section 9: Head Movement Calculation -->
+                <section class="calculation-section">
+                    <div class="grid-layout cols-3">
+                        <div class="glass-card table-card">
+                            <h3>Calculation Steps</h3>
+                            <table class="calc-table" id="fcfs-calc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Movement</th>
+                                        <th>Distance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Generated rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="glass-card total-card">
+                            <h3>Total Head Movement</h3>
+                            <div class="total-score" id="fcfs-total-score">0</div>
+                            <p>This represents the total distance traveled by the disk head to complete all requests.
+                            </p>
+                        </div>
+                        <div class="glass-card seek-time-card">
+                            <h3>Average Seek Time</h3>
+                            <div class="circular-progress" id="fcfs-seek-progress">
+                                <span class="progress-value" id="fcfs-avg-score">0</span>
+                            </div>
+                            <p id="fcfs-seek-calc-text">100 / 10 = 10 tracks</p>
+                            <p><small>Average Seek Distance per Request</small></p>
                         </div>
                     </div>
-                    <p class="viz-explanation">Animation showing step-by-step head movement servicing requests in
-                        exactly the arrival order.</p>
-                </div>
-            </section>
+                </section>
 
-            <!-- Section 8: Track Servicing Order -->
-            <section class="order-section">
-                <div class="glass-card text-center">
-                    <h3>Servicing Order</h3>
-                    <div class="servicing-path" id="fcfs-order-display">
-                        <!-- e.g. 53 -> 98 -> 183 -> 37 ... -->
+                <!-- Section 9.5: Step-by-Step Execution of FCFS Disk Scheduling -->
+                <section class="step-execution-section">
+                    <h3 class="section-title">Step-by-Step Execution of FCFS Disk Scheduling</h3>
+                    <div class="glass-card fade-in">
+                        <p class="text-center">This section explains how the algorithm processed the input. Click on a
+                            step
+                            to highlight the corresponding movement in the graph.</p>
+                        <div class="step-execution-grid" id="fcfs-step-grid">
+                            <!-- Step cards injected here by JS -->
+                        </div>
                     </div>
-                    <p><small>FCFS services requests exactly in the order they appear in the queue.</small></p>
-                </div>
-            </section>
+                </section>
 
-            <!-- Section 9: Head Movement Calculation -->
-            <section class="calculation-section">
-                <div class="grid-layout cols-2">
-                    <div class="glass-card table-card">
-                        <h3>Calculation Steps</h3>
-                        <table class="calc-table" id="fcfs-calc-table">
+                <!-- Section 9.5: Teaching Visual Lab Sections -->
+                <section class="teaching-section">
+                    <h3 class="section-title">Understanding FCFS Disk Scheduling</h3>
+
+                    <div class="glass-card teaching-part">
+                        <h4>Part 1 &ndash; Step-by-Step Working</h4>
+                        <p>Observe the execution of FCFS step-by-step from the simulation.</p>
+                        <div class="step-execution-grid" id="fcfs-step-grid">
+                            <!-- Step cards injected here by JS -->
+                        </div>
+                    </div>
+
+                    <div class="glass-card teaching-part">
+                        <h4>Part 2 &ndash; Mathematical Equations</h4>
+                        <p>Total Head Movement is the sum of the absolute differences between consecutive track
+                            accesses:</p>
+                        <div class="formula-box">
+                            Head Movement = |Track<sub>2</sub> - Track<sub>1</sub>|<br><br>
+                            Total = &Sigma; |T<sub>i</sub> - T<sub>i-1</sub>|
+                        </div>
+                        <p><strong>Example Calculation:</strong></p>
+                        <div class="calc-list" id="fcfs-math-calc-list">
+                            <!-- Injected by JS -->
+                        </div>
+                        <h3 style="margin-top: 1rem; color: var(--accent-1);">Total Head Movement: <span
+                                id="fcfs-math-total">0</span> tracks</h3>
+                    </div>
+
+                    <div class="glass-card teaching-part">
+                        <h4>Part 3 &ndash; Average Seek Time</h4>
+                        <p>The time needed to service a single request on average.</p>
+                        <div class="formula-box">
+                            Average Seek Time = Total Head Movement / Number of Requests
+                        </div>
+
+                        <div class="seek-time-card">
+                            <div class="circular-progress" id="fcfs-seek-progress">
+                                <span class="progress-value" id="fcfs-avg-score">0</span>
+                            </div>
+                            <p id="fcfs-seek-calc-text" style="font-family: monospace; font-size: 1.1rem; color: #ccc;">
+                                0 / 0 = 0 tracks</p>
+                        </div>
+                    </div>
+
+                    <div class="glass-card teaching-part">
+                        <h4>Part 4 &ndash; Key Characteristics of FCFS</h4>
+                        <ul class="properties-list">
+                            <li><strong>Simple and easy to implement:</strong> The algorithm requires minimal logic.
+                            </li>
+                            <li><strong>Processes requests in arrival order:</strong> Exactly like a first-in, first-out
+                                queue.</li>
+                            <li><strong>Fair scheduling method:</strong> Every request is serviced without starvation.
+                            </li>
+                            <li><strong>Can result in large head movement:</strong> Can wildly swing from 0 to 199
+                                causing inefficiency (unlike SCAN or SSTF).</li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Section 10: Comparison Simulator -->
+            <section class="comparison-section" id="comparison">
+                <h2 class="section-title">Disk Scheduling Algorithm Comparison</h2>
+                <div class="glass-card sim-form-card">
+                    <form id="comp-form">
+                        <div class="input-group">
+                            <label for="comp-head">Initial Head Position (0-199):</label>
+                            <input type="number" id="comp-head" min="0" max="199" value="53" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="comp-requests">Track Requests (comma separated):</label>
+                            <input type="text" id="comp-requests" value="98,183,37,122,14,124,65"
+                                pattern="^(\s*\d+\s*(,\s*\d+\s*)*)$" required>
+                        </div>
+                        <button type="submit" class="glow-button">Run Algorithm Comparison</button>
+                    </form>
+                </div>
+
+                <!-- Comparison Results Container -->
+                <div id="comp-results" class="results-container hidden">
+                    <h3 class="section-title">Visual Comparison</h3>
+
+                    <!-- Panels -->
+                    <div class="panels-container">
+                        <!-- FCFS -->
+                        <div class="glass-card panel-card">
+                            <div class="panel-header">
+                                <h4>FCFS</h4>
+                            </div>
+                            <canvas id="comp-fcfs-canvas" class="panel-canvas" height="100"></canvas>
+                            <div class="panel-order" id="comp-fcfs-order"></div>
+                        </div>
+                        <!-- SSTF -->
+                        <div class="glass-card panel-card">
+                            <div class="panel-header">
+                                <h4>SSTF</h4>
+                            </div>
+                            <canvas id="comp-sstf-canvas" class="panel-canvas" height="100"></canvas>
+                            <div class="panel-order" id="comp-sstf-order"></div>
+                        </div>
+                        <!-- SCAN -->
+                        <div class="glass-card panel-card">
+                            <div class="panel-header">
+                                <h4>SCAN</h4>
+                            </div>
+                            <canvas id="comp-scan-canvas" class="panel-canvas" height="100"></canvas>
+                            <div class="panel-order" id="comp-scan-order"></div>
+                        </div>
+                        <!-- C-SCAN -->
+                        <div class="glass-card panel-card">
+                            <div class="panel-header">
+                                <h4>C-SCAN</h4>
+                            </div>
+                            <canvas id="comp-cscan-canvas" class="panel-canvas" height="100"></canvas>
+                            <div class="panel-order" id="comp-cscan-order"></div>
+                        </div>
+                        <!-- LOOK -->
+                        <div class="glass-card panel-card">
+                            <div class="panel-header">
+                                <h4>LOOK</h4>
+                            </div>
+                            <canvas id="comp-look-canvas" class="panel-canvas" height="100"></canvas>
+                            <div class="panel-order" id="comp-look-order"></div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Table -->
+                    <h3 class="section-title">Movement Results Comparison</h3>
+                    <div class="glass-card comparison-table-card">
+                        <table class="calc-table comp-table" id="comparison-table">
                             <thead>
                                 <tr>
-                                    <th>Movement</th>
-                                    <th>Distance</th>
+                                    <th>Algorithm</th>
+                                    <th>Total Head Movement</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Generated rows -->
+                                <!-- Generated Rows, highlight best -->
                             </tbody>
                         </table>
                     </div>
-                    <div class="glass-card total-card">
-                        <h3>Total Head Movement</h3>
-                        <div class="total-score" id="fcfs-total-score">0</div>
-                        <p>This represents the total distance traveled by the disk head to complete all requests.</p>
-                    </div>
+
                 </div>
             </section>
-        </div>
 
-        <!-- Section 10: Comparison Simulator -->
-        <section class="comparison-section" id="comparison">
-            <h2 class="section-title">Disk Scheduling Algorithm Comparison</h2>
-            <div class="glass-card sim-form-card">
-                <form id="comp-form">
-                    <div class="input-group">
-                        <label for="comp-head">Initial Head Position (0-199):</label>
-                        <input type="number" id="comp-head" min="0" max="199" value="53" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="comp-requests">Track Requests (comma separated):</label>
-                        <input type="text" id="comp-requests" value="98,183,37,122,14,124,65"
-                            pattern="^(\s*\d+\s*(,\s*\d+\s*)*)$" required>
-                    </div>
-                    <button type="submit" class="glow-button">Run Algorithm Comparison</button>
-                </form>
-            </div>
-
-            <!-- Comparison Results Container -->
-            <div id="comp-results" class="results-container hidden">
-                <h3 class="section-title">Visual Comparison</h3>
-
-                <!-- Panels -->
-                <div class="panels-container">
-                    <!-- FCFS -->
-                    <div class="glass-card panel-card">
-                        <div class="panel-header">
-                            <h4>FCFS</h4>
-                        </div>
-                        <canvas id="comp-fcfs-canvas" class="panel-canvas" width="800" height="100"></canvas>
-                        <div class="panel-order" id="comp-fcfs-order"></div>
-                    </div>
-                    <!-- SSTF -->
-                    <div class="glass-card panel-card">
-                        <div class="panel-header">
-                            <h4>SSTF</h4>
-                        </div>
-                        <canvas id="comp-sstf-canvas" class="panel-canvas" width="800" height="100"></canvas>
-                        <div class="panel-order" id="comp-sstf-order"></div>
-                    </div>
-                    <!-- SCAN -->
-                    <div class="glass-card panel-card">
-                        <div class="panel-header">
-                            <h4>SCAN</h4>
-                        </div>
-                        <canvas id="comp-scan-canvas" class="panel-canvas" width="800" height="100"></canvas>
-                        <div class="panel-order" id="comp-scan-order"></div>
-                    </div>
-                    <!-- C-SCAN -->
-                    <div class="glass-card panel-card">
-                        <div class="panel-header">
-                            <h4>C-SCAN</h4>
-                        </div>
-                        <canvas id="comp-cscan-canvas" class="panel-canvas" width="800" height="100"></canvas>
-                        <div class="panel-order" id="comp-cscan-order"></div>
-                    </div>
-                    <!-- LOOK -->
-                    <div class="glass-card panel-card">
-                        <div class="panel-header">
-                            <h4>LOOK</h4>
-                        </div>
-                        <canvas id="comp-look-canvas" class="panel-canvas" width="800" height="100"></canvas>
-                        <div class="panel-order" id="comp-look-order"></div>
-                    </div>
-                </div>
-
-                <!-- Comparison Table -->
-                <h3 class="section-title">Movement Results Comparison</h3>
-                <div class="glass-card comparison-table-card">
-                    <table class="calc-table comp-table" id="comparison-table">
-                        <thead>
-                            <tr>
-                                <th>Algorithm</th>
-                                <th>Total Head Movement</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Generated Rows, highlight best -->
-                        </tbody>
-                    </table>
-                </div>
-
-            </div>
-        </section>
-
-        <!-- Section 11: CPU Scheduling Simulator -->
-        <section class="simulator-section" id="cpu-simulator">
-            <h2 class="section-title">FCFS CPU Scheduling Simulator</h2>
-            <div class="glass-card">
-                <p style="text-align: center; margin-bottom: 2rem; color: #ccc;">Simulate FCFS process scheduling by
-                    entering Arrival Time and Burst Time for each process.</p>
-                <div class="cpu-controls">
-                    <table class="calc-table" id="process-table">
-                        <thead>
-                            <tr>
-                                <th>Process ID</th>
-                                <th>Arrival Time</th>
-                                <th>Burst Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>P1</td>
-                                <td><input type="number" class="process-arrival cpu-input" value="0" min="0"></td>
-                                <td><input type="number" class="process-burst cpu-input" value="5" min="1"></td>
-                            </tr>
-                            <tr>
-                                <td>P2</td>
-                                <td><input type="number" class="process-arrival cpu-input" value="1" min="0"></td>
-                                <td><input type="number" class="process-burst cpu-input" value="3" min="1"></td>
-                            </tr>
-                            <tr>
-                                <td>P3</td>
-                                <td><input type="number" class="process-arrival cpu-input" value="2" min="0"></td>
-                                <td><input type="number" class="process-burst cpu-input" value="8" min="1"></td>
-                            </tr>
-                            <tr>
-                                <td>P4</td>
-                                <td><input type="number" class="process-arrival cpu-input" value="3" min="0"></td>
-                                <td><input type="number" class="process-burst cpu-input" value="6" min="1"></td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem;">
-                        <button class="glow-button" id="add-process-btn"
-                            style="padding: 0.5rem 1.5rem; font-size: 1rem;">+ Add Process</button>
-                        <button class="glow-button" id="remove-process-btn"
-                            style="padding: 0.5rem 1.5rem; font-size: 1rem; background: transparent; border: 1px solid var(--accent-2); color: var(--accent-2); box-shadow: none;">-
-                            Remove Process</button>
-                    </div>
-                    <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
-                        <button class="glow-button" id="run-cpu-sim-btn" style="width: 100%;">Run FCFS CPU
-                            Scheduling</button>
-                    </div>
-                </div>
-
-                <!-- CPU Results Container -->
-                <div id="cpu-results-panel" class="hidden" style="margin-top: 3rem;">
-                    <h3 class="section-title" style="font-size: 1.8rem;">Simulation Results</h3>
-
-                    <div class="table-card">
-                        <table class="calc-table" id="cpu-calc-table">
+            <!-- Section 11: CPU Scheduling Simulator -->
+            <section class="simulator-section" id="cpu-simulator">
+                <h2 class="section-title">FCFS CPU Scheduling Simulator</h2>
+                <div class="glass-card">
+                    <p style="text-align: center; margin-bottom: 2rem; color: #ccc;">Simulate FCFS process scheduling by
+                        entering Arrival Time and Burst Time for each process.</p>
+                    <div class="cpu-controls">
+                        <table class="calc-table" id="process-table">
                             <thead>
                                 <tr>
-                                    <th>Process</th>
-                                    <th>Arrival</th>
-                                    <th>Burst</th>
-                                    <th>Start</th>
-                                    <th>Completion</th>
-                                    <th>Waiting</th>
-                                    <th>Turnaround</th>
-                                    <th>Response</th>
+                                    <th>Process ID</th>
+                                    <th>Arrival Time</th>
+                                    <th>Burst Time</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Generated by JS -->
+                                <tr>
+                                    <td>P1</td>
+                                    <td><input type="number" class="process-arrival cpu-input" value="0" min="0"></td>
+                                    <td><input type="number" class="process-burst cpu-input" value="5" min="1"></td>
+                                </tr>
+                                <tr>
+                                    <td>P2</td>
+                                    <td><input type="number" class="process-arrival cpu-input" value="1" min="0"></td>
+                                    <td><input type="number" class="process-burst cpu-input" value="3" min="1"></td>
+                                </tr>
+                                <tr>
+                                    <td>P3</td>
+                                    <td><input type="number" class="process-arrival cpu-input" value="2" min="0"></td>
+                                    <td><input type="number" class="process-burst cpu-input" value="8" min="1"></td>
+                                </tr>
+                                <tr>
+                                    <td>P4</td>
+                                    <td><input type="number" class="process-arrival cpu-input" value="3" min="0"></td>
+                                    <td><input type="number" class="process-burst cpu-input" value="6" min="1"></td>
+                                </tr>
                             </tbody>
                         </table>
-                    </div>
 
-                    <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Gantt Chart</h3>
-                    <div class="gantt-container" id="gantt-chart-container">
-                        <!-- Blocks injected here -->
-                    </div>
-                    <div class="gantt-time-axis" id="gantt-time-axis">
-                        <!-- Times injected here -->
-                    </div>
-
-                    <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Performance Dashboard</h3>
-                    <div class="grid-layout cols-3" style="text-align: center;">
-                        <div class="glass-card">
-                            <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-cpu-util">0%</h3>
-                            <p>CPU Utilization</p>
+                        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem;">
+                            <button class="glow-button" id="add-process-btn"
+                                style="padding: 0.5rem 1.5rem; font-size: 1rem;">+ Add Process</button>
+                            <button class="glow-button" id="remove-process-btn"
+                                style="padding: 0.5rem 1.5rem; font-size: 1rem; background: transparent; border: 1px solid var(--accent-2); color: var(--accent-2); box-shadow: none;">-
+                                Remove Process</button>
                         </div>
-                        <div class="glass-card">
-                            <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-throughput">0</h3>
-                            <p>Throughput</p>
-                        </div>
-                        <div class="glass-card">
-                            <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-wait">0</h3>
-                            <p>Avg Waiting Time</p>
-                        </div>
-                        <div class="glass-card">
-                            <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-turn">0</h3>
-                            <p>Avg Turnaround Time</p>
-                        </div>
-                        <div class="glass-card">
-                            <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-resp">0</h3>
-                            <p>Avg Response Time</p>
+                        <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                            <button class="glow-button" id="run-cpu-sim-btn" style="width: 100%;">Run FCFS CPU
+                                Scheduling</button>
                         </div>
                     </div>
 
-                    <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Metrics Visualization</h3>
-                    <div class="grid-layout cols-1">
-                        <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
-                            <canvas id="bar-chart-perf"></canvas>
+                    <!-- CPU Results Container -->
+                    <div id="cpu-results-panel" class="hidden" style="margin-top: 3rem;">
+                        <h3 class="section-title" style="font-size: 1.8rem;">Simulation Results</h3>
+
+                        <div class="table-card">
+                            <table class="calc-table" id="cpu-calc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Process</th>
+                                        <th>Arrival</th>
+                                        <th>Burst</th>
+                                        <th>Start</th>
+                                        <th>Completion</th>
+                                        <th>Waiting</th>
+                                        <th>Turnaround</th>
+                                        <th>Response</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Generated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Gantt Chart</h3>
+                        <div class="gantt-container" id="gantt-chart-container">
+                            <!-- Blocks injected here -->
+                        </div>
+                        <div class="gantt-time-axis" id="gantt-time-axis">
+                            <!-- Times injected here -->
+                        </div>
+
+                        <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Performance Dashboard
+                        </h3>
+                        <div class="grid-layout cols-3" style="text-align: center;">
+                            <div class="glass-card">
+                                <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-cpu-util">0%</h3>
+                                <p>CPU Utilization</p>
+                            </div>
+                            <div class="glass-card">
+                                <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-throughput">0</h3>
+                                <p>Throughput</p>
+                            </div>
+                            <div class="glass-card">
+                                <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-wait">0</h3>
+                                <p>Avg Waiting Time</p>
+                            </div>
+                            <div class="glass-card">
+                                <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-turn">0</h3>
+                                <p>Avg Turnaround Time</p>
+                            </div>
+                            <div class="glass-card">
+                                <h3 style="color: var(--accent-1); font-size: 2.5rem;" id="dash-avg-resp">0</h3>
+                                <p>Avg Response Time</p>
+                            </div>
+                        </div>
+
+                        <h3 class="section-title" style="font-size: 1.8rem; margin-top: 3rem;">Metrics Visualization
+                        </h3>
+                        <div class="grid-layout cols-1">
+                            <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
+                                <canvas id="bar-chart-perf"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <footer class="footer">
-            <p>Modern Interactive Operating Systems Learning Tool</p>
-        </footer>
+        </main>
     </div>
 
     <!-- JS script -->
