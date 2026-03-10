@@ -147,6 +147,20 @@
                 </div>
             </section>
 
+            <!-- Section 5: Why FCFS? -->
+            <section class="why-fcfs-section">
+                <h2 class="section-title">Why FCFS?</h2>
+                <div class="why-fcfs-card">
+                    <p>In FCFS (First-Come, First-Served) disk scheduling, requests are processed in the exact order
+                        they arrival in the queue. The disk head moves sequentially between requested tracks, and the
+                        total movement determines the disk access time.</p>
+                    <p style="margin-top: 1rem; opacity: 0.8; font-style: italic;">
+                        <strong>Note:</strong> Because FCFS does not optimize movement, it can sometimes cause large
+                        head movement compared to other algorithms like SSTF or SCAN.
+                    </p>
+                </div>
+            </section>
+
             <!-- Section 5: FCFS Explanation -->
             <section class="explanation-section" id="fcfs-explanation">
                 <h2 class="section-title">FCFS Algorithm Explanation</h2>
@@ -569,6 +583,28 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Section 9: Conclusion -->
+            <section class="conclusion-section">
+                <h2 class="section-title">Conclusion</h2>
+                <div class="glass-card conclusion-card" style="max-width: 900px; margin: auto; text-align: center;">
+                    <p>FCFS processes disk requests in arrival order but often causes large head movement. Algorithms
+                        such as SSTF, SCAN, C-SCAN, and LOOK optimize disk head movement by choosing requests based on
+                        proximity or direction. By interacting with the visualizations above, we can observe that
+                        optimizing scheduling drastically improves disk performance.</p>
+                </div>
+            </section>
+
+            <!-- Footer / Project Credits -->
+            <footer class="footer-credits">
+                <h3>Disk Scheduling Algorithms Visualizer</h3>
+                <p>Developed by: Adarsh S<br>
+                    Course: Operating Systems<br>
+                    Institution: Amal Jyothi College of Engineering</p>
+                <div style="margin-top: 20px;">
+                    <a href="https://github.com/ash007-web/os_fcfs" target="_blank">Source Code on GitHub</a>
+                </div>
+            </footer>
 
         </main>
     </div>

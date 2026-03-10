@@ -1078,3 +1078,47 @@ canvas {
         gap: 1.5rem;
     }
 }
+
+/* ------------- New Footer & Conclusion Styles ------------- */
+.why-fcfs-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    max-width: 900px;
+    margin: auto;
+    border-left: 4px solid var(--accent-2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    transition: var(--transition);
+}
+
+.why-fcfs-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.footer-credits {
+    text-align: center;
+    margin-top: 4rem;
+    padding: 3rem 1rem;
+    border-top: 1px solid var(--card-border);
+    line-height: 1.8;
+    color: var(--text-color);
+}
+
+.footer-credits h3 {
+    color: var(--accent-1);
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.footer-credits a {
+    color: var(--accent-2);
+    text-decoration: underline;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.footer-credits a:hover {
+    color: var(--accent-1);
+    text-shadow: var(--glow);
+}
