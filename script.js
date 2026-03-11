@@ -1,606 +1,364 @@
-// ------------- Utility Functions -------------
+// ══════════════════════════════════════════════════════
+//   Disk Scheduling Visualizer — Deep Teal Edition
+//   Palette: #203940 | #4A8280 | #A5C5C5 | #E6F1FA | #FBE36A
+//   Semantic: BG | Completed/Path | Pending | Text | Active/Head
+// ══════════════════════════════════════════════════════
 
-function parseRequests(inputStr) {
-    return inputStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-}
+// ── Palette constants for canvas drawing ──
+const C = {
+  // Semantic simulation colors
+  pending:   '#A5C5C5',   // Pending request nodes
+  active:    '#FBE36A',   // Currently serviced / disk head
+  completed: '#4A8280',   // Completed request nodes
+  path:      '#4A8280',   // Movement path lines
+  grid:      'rgba(165,197,197,0.25)', // Grid lines
 
-function calculateMovementAndPath(head, requests, algo) {
-    let currentHead = head;
-    let path = [head];
-    let movement = 0;
-    let reqs = [...requests];
+  // Aliases kept for backward compat
+  rust:  '#4A8280',   // was orange, now completed/path teal
+  gold:  '#FBE36A',   // active/highlight yellow
+  teal:  '#4A8280',   // path/completed
+  deep:  '#A5C5C5',   // was dark rust, now pending soft
 
-    if (algo === 'FCFS') {
-        reqs.forEach(req => {
-            movement += Math.abs(currentHead - req);
-            currentHead = req;
-            path.push(currentHead);
-        });
-    } else if (algo === 'SSTF') {
-        while (reqs.length > 0) {
-            let closestIdx = 0;
-            let minDiff = Infinity;
-            reqs.forEach((req, idx) => {
-                let diff = Math.abs(currentHead - req);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    closestIdx = idx;
-                }
-            });
-            let nextReq = reqs.splice(closestIdx, 1)[0];
-            movement += Math.abs(currentHead - nextReq);
-            currentHead = nextReq;
-            path.push(currentHead);
-        }
-    } else if (algo === 'SCAN') {
-        // Assume moving towards 199 first
-        let left = reqs.filter(r => r < currentHead).sort((a, b) => b - a);
-        let right = reqs.filter(r => r >= currentHead).sort((a, b) => a - b);
-
-        right.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-        // Go to end 199
-        if (currentHead !== 199 && left.length > 0) {
-            movement += Math.abs(currentHead - 199);
-            currentHead = 199;
-            path.push(currentHead);
-        }
-        left.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-
-    } else if (algo === 'C-SCAN') {
-        let left = reqs.filter(r => r < currentHead).sort((a, b) => a - b);
-        let right = reqs.filter(r => r >= currentHead).sort((a, b) => a - b);
-
-        right.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-
-        if (left.length > 0) {
-            // Jump to end 199 then 0
-            if (currentHead !== 199) { movement += Math.abs(currentHead - 199); currentHead = 199; path.push(currentHead); }
-            movement += Math.abs(currentHead - 0); currentHead = 0; path.push(currentHead);
-
-            left.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-        }
-    } else if (algo === 'LOOK') {
-        let left = reqs.filter(r => r < currentHead).sort((a, b) => b - a);
-        let right = reqs.filter(r => r >= currentHead).sort((a, b) => a - b);
-
-        right.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-        left.forEach(r => { movement += Math.abs(currentHead - r); currentHead = r; path.push(currentHead); });
-    }
-
-    return { path, movement };
-}
-
-// ------------- Canvas Drawing & Slider Logic -------------
-
-// Global Variables for FCFS logic and playback state
-let globalFCFSPath = [];
-let globalFCFSMaxTrack = 199;
-let fcfsNodes = [];
-
-let fcfsPlayback = {
-    state: 'idle', // 'idle', 'playing', 'paused', 'finished', 'stepping'
-    segmentIndex: 0,
-    segmentProgress: 0.0,
-    resolveStep: null, // used to pause/resume standard execution
-    reqAnimFrame: null,
-    durationPerSegment: 800
+  textHi:  '#E6F1FA',
+  textMid: '#A5C5C5',
+  textLo:  '#6a9898',
 };
 
+// ── Utilities ──
+function parseRequests(s) {
+  return s.split(',').map(v => parseInt(v.trim(), 10)).filter(n => !isNaN(n));
+}
+
 function easeInOutQuad(t) {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-// Render the graphical state based on an exact point in time/progress
-function renderState(ctx, width, height, paddingX, paddingY, nodes, progressIndex, segmentProgress, highlightedStepIndex = -1) {
-    ctx.clearRect(0, 0, width, height);
+// ── Algorithm Calculation ──
+function calculateMovementAndPath(head, requests, algo) {
+  let cur = head, path = [head], movement = 0, reqs = [...requests];
 
-    // Base track line
-    ctx.beginPath();
-    ctx.moveTo(paddingX, paddingY);
-    ctx.lineTo(width - paddingX, paddingY);
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.lineWidth = 4;
+  if (algo === 'FCFS') {
+    reqs.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+
+  } else if (algo === 'SSTF') {
+    while (reqs.length > 0) {
+      let ci = 0, min = Infinity;
+      reqs.forEach((r, i) => { let d = Math.abs(cur - r); if (d < min) { min = d; ci = i; } });
+      let next = reqs.splice(ci, 1)[0];
+      movement += Math.abs(cur - next); cur = next; path.push(cur);
+    }
+
+  } else if (algo === 'SCAN') {
+    let left  = reqs.filter(r => r < cur).sort((a,b) => b - a);
+    let right = reqs.filter(r => r >= cur).sort((a,b) => a - b);
+    right.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+    if (cur !== 199 && left.length > 0) { movement += Math.abs(cur - 199); cur = 199; path.push(cur); }
+    left.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+
+  } else if (algo === 'C-SCAN') {
+    let left  = reqs.filter(r => r < cur).sort((a,b) => a - b);
+    let right = reqs.filter(r => r >= cur).sort((a,b) => a - b);
+    right.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+    if (left.length > 0) {
+      if (cur !== 199) { movement += Math.abs(cur - 199); cur = 199; path.push(cur); }
+      movement += 199; cur = 0; path.push(cur);
+      left.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+    }
+
+  } else if (algo === 'LOOK') {
+    let left  = reqs.filter(r => r < cur).sort((a,b) => b - a);
+    let right = reqs.filter(r => r >= cur).sort((a,b) => a - b);
+    right.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+    left.forEach(r => { movement += Math.abs(cur - r); cur = r; path.push(cur); });
+  }
+
+  return { path, movement };
+}
+
+// ══════════════════════════════════════════════════════
+//   CANVAS DRAWING ENGINE
+// ══════════════════════════════════════════════════════
+
+let globalPath = [], globalMax = 199, fcfsNodes = [];
+
+let playback = {
+  state: 'idle',        // idle | playing | paused | stepping | finished
+  segIdx: 0,
+  segProg: 0.0,
+  resolveStep: null,
+  raf: null,
+  duration: 800
+};
+
+function drawNode(ctx, x, y, label, fill, stroke, r, alpha) {
+  ctx.globalAlpha = alpha;
+
+  // Glow for active nodes
+  if (alpha > 0.6 && (fill === C.rust || fill === C.gold || fill === C.teal)) {
+    ctx.shadowColor = fill;
+    ctx.shadowBlur = 14;
+  }
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+  }
 
-    if (nodes.length === 0) return;
+  if (label !== '') {
+    ctx.fillStyle = C.textHi;
+    ctx.font = `600 10px 'IBM Plex Mono', monospace`;
+    ctx.fillText(String(label), x + 9, y + 4);
+  }
 
-    // Lines
-    for (let i = 1; i < nodes.length; i++) {
-        if (i > progressIndex + 1) break;
-
-        let startNode = nodes[i - 1];
-        let endNode = nodes[i];
-
-        let currentEndX = endNode.x;
-        let currentEndY = endNode.y;
-
-        let isCurrentSegment = (i === progressIndex + 1);
-        if (isCurrentSegment) {
-            currentEndX = startNode.x + (endNode.x - startNode.x) * segmentProgress;
-            currentEndY = startNode.y + (endNode.y - startNode.y) * segmentProgress;
-        }
-
-        let grad = ctx.createLinearGradient(startNode.x, startNode.y, endNode.x, endNode.y);
-        grad.addColorStop(0, "#FF2E63");
-        grad.addColorStop(1, "#08D9D6");
-
-        ctx.beginPath();
-        ctx.moveTo(startNode.x, startNode.y);
-        ctx.lineTo(currentEndX, currentEndY);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = (highlightedStepIndex === i || (highlightedStepIndex === -1 && isCurrentSegment)) ? 4 : 2;
-
-        if (highlightedStepIndex !== -1 && highlightedStepIndex !== i) {
-            ctx.globalAlpha = 0.2; // Dim unselected path segments
-        } else {
-            ctx.globalAlpha = 1.0;
-        }
-
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-    }
-
-    // Pending nodes (faded)
-    for (let i = progressIndex + 1; i < nodes.length; i++) {
-        drawSolidNode(ctx, nodes[i].x, nodes[i].y, nodes[i].label, "#EAEAEA", "#412653", 2, 0.4);
-    }
-
-    // Visited nodes
-    for (let i = 0; i <= progressIndex; i++) {
-        let isInitial = i === 0;
-        let nInfo = nodes[i];
-        let color = isInitial ? "#FF2E63" : "#08D9D6";
-
-        let opacity = 1.0;
-        if (i < progressIndex && highlightedStepIndex === -1) {
-            opacity = 0.6; // Fade older visited nodes
-        }
-        if (highlightedStepIndex !== -1) {
-            if (i === highlightedStepIndex - 1 || i === highlightedStepIndex) opacity = 1.0;
-            else opacity = 0.3;
-        }
-
-        drawSolidNode(ctx, nInfo.x, nInfo.y, nInfo.label, color, "#fff", isInitial ? 5 : 4, opacity);
-    }
-
-    // Moving head point on graph
-    if (segmentProgress > 0 && segmentProgress < 1 && progressIndex + 1 < nodes.length) {
-        let startNode = nodes[progressIndex];
-        let endNode = nodes[progressIndex + 1];
-        let curX = startNode.x + (endNode.x - startNode.x) * segmentProgress;
-        let curY = startNode.y + (endNode.y - startNode.y) * segmentProgress;
-        drawSolidNode(ctx, curX, curY, "", "#FF2E63", "#fff", 4, 1.0);
-    }
+  ctx.globalAlpha = 1;
 }
 
-// Draw static nodes wrapper
-function drawSolidNode(ctx, x, y, label, bgColor, borderColor, radius, opacity) {
-    ctx.globalAlpha = opacity;
+function renderFrame(ctx, w, h, padX, padY, nodes, progIdx, segProg, highlight = -1) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Base track line
+  ctx.beginPath();
+  ctx.moveTo(padX, padY);
+  ctx.lineTo(w - padX, padY);
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  if (!nodes.length) return;
+
+  // Movement lines
+  for (let i = 1; i < nodes.length; i++) {
+    if (i > progIdx + 1) break;
+    const sn = nodes[i - 1], en = nodes[i];
+    const isCur = i === progIdx + 1;
+
+    let ex = isCur ? sn.x + (en.x - sn.x) * segProg : en.x;
+    let ey = isCur ? sn.y + (en.y - sn.y) * segProg : en.y;
+
+    const grad = ctx.createLinearGradient(sn.x, sn.y, en.x, en.y);
+    grad.addColorStop(0, C.completed);
+    grad.addColorStop(1, C.path);
+
     ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    ctx.fillStyle = bgColor;
-    ctx.fill();
-    if (borderColor) {
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-    }
+    ctx.moveTo(sn.x, sn.y);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = isCur ? C.active : grad;
+    ctx.lineWidth = isCur || highlight === i ? 4 : 3;
+    ctx.lineCap = 'round';
 
-    if (label !== "") {
-        ctx.fillStyle = "#EAEAEA";
-        ctx.font = "10px sans-serif";
-        ctx.fillText(label.toString(), x + 8, y + 4);
+    if (highlight !== -1 && highlight !== i) ctx.globalAlpha = 0.14;
+    else ctx.globalAlpha = 1;
+
+    // Line glow for active segment
+    if (isCur || highlight === i) {
+      ctx.shadowColor = C.active;
+      ctx.shadowBlur = 12;
     }
-    ctx.globalAlpha = 1.0;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // Pending nodes — muted soft teal
+  for (let i = progIdx + 1; i < nodes.length; i++) {
+    drawNode(ctx, nodes[i].x, nodes[i].y, nodes[i].label, C.pending, 'rgba(165,197,197,0.5)', 4, 0.52);
+  }
+
+  // Visited nodes — completed = teal, current active = gold (head)
+  for (let i = 0; i <= progIdx; i++) {
+    const n = nodes[i], isInit = i === 0;
+    const isCurrentlyActive = i === progIdx && i > 0;
+    const col = isInit ? C.active : (isCurrentlyActive ? C.active : C.completed);
+    let alpha = 1;
+    if (i < progIdx && highlight === -1) alpha = 0.72;
+    if (highlight !== -1) alpha = (i === highlight - 1 || i === highlight) ? 1 : 0.28;
+    drawNode(ctx, n.x, n.y, n.label, col, isCurrentlyActive ? 'rgba(251,227,106,0.6)' : '#fff', isInit ? 7 : 5.5, alpha);
+  }
+
+  // Moving dot on current segment — gold = disk head
+  if (segProg > 0 && segProg < 1 && progIdx + 1 < nodes.length) {
+    const sn = nodes[progIdx], en = nodes[progIdx + 1];
+    ctx.shadowColor = C.active;
+    ctx.shadowBlur = 16;
+    drawNode(ctx, sn.x + (en.x - sn.x) * segProg, sn.y + (en.y - sn.y) * segProg, '', C.active, 'rgba(251,227,106,0.7)', 6, 1);
+    ctx.shadowBlur = 0;
+  }
 }
 
-// Master initialization func (handles setup, but waits for user Play)
-function initializeFCFSGraph(canvasId, path, maxTrack = 199) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+// ── Initialize FCFS Graph ──
+function initFCFSGraph(canvasId, path, maxTrack = 199) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
 
-    globalFCFSPath = path;
-    globalFCFSMaxTrack = maxTrack;
+  globalPath = path; globalMax = maxTrack;
 
-    const paddingX = 30;
-    const paddingY = 20;
-    const usableWidth = width - (paddingX * 2);
-    const usableHeight = height - (paddingY * 2);
-    const stepY = usableHeight / (path.length > 1 ? path.length - 1 : 1);
-    const getX = (val) => paddingX + (val / maxTrack) * usableWidth;
+  const padX = 32, padY = 22;
+  const usableW = w - padX * 2, usableH = h - padY * 2;
+  const stepY = usableH / (path.length > 1 ? path.length - 1 : 1);
+  const getX = v => padX + (v / maxTrack) * usableW;
 
-    fcfsNodes = path.map((val, i) => ({
-        x: getX(val),
-        y: paddingY + (i * stepY),
-        label: val
-    }));
+  fcfsNodes = path.map((v, i) => ({ x: getX(v), y: padY + i * stepY, label: v }));
 
-    // Reset State
-    fcfsPlayback.state = 'idle';
-    fcfsPlayback.segmentIndex = 0;
-    fcfsPlayback.segmentProgress = 0.0;
-    if (fcfsPlayback.reqAnimFrame) cancelAnimationFrame(fcfsPlayback.reqAnimFrame);
+  playback.state = 'idle';
+  playback.segIdx = 0;
+  playback.segProg = 0;
+  if (playback.raf) cancelAnimationFrame(playback.raf);
 
-    window.fcfsCtx = ctx;
-    window.fcfsWidth = width;
-    window.fcfsHeight = height;
-    window.fcfsPadX = paddingX;
-    window.fcfsPadY = paddingY;
+  window._fcfsCtx = ctx; window._fcfsW = w; window._fcfsH = h;
+  window._padX = padX; window._padY = padY;
 
-    // Render Initial Frame (idle)
-    updateGraphAndSlider(0, 0.0, -1);
-    document.getElementById('play-btn').disabled = false;
-    document.getElementById('pause-btn').disabled = true;
-    document.getElementById('next-btn').disabled = false;
-    document.getElementById('reset-btn').disabled = false;
+  updateGraphAndSlider(0, 0, -1);
 
-    // Bind Hover Sync function to window
-    window.renderFCFSGraphStep = function (stepIndex) {
-        if (fcfsPlayback.state !== 'playing') {
-            updateGraphAndSlider(fcfsPlayback.segmentIndex, fcfsPlayback.segmentProgress, stepIndex);
-        }
-    };
+  ['play-btn','next-btn','reset-btn'].forEach(id => document.getElementById(id).disabled = false);
+  document.getElementById('pause-btn').disabled = true;
+
+  window.previewStep = function(idx) {
+    if (playback.state !== 'playing') updateGraphAndSlider(playback.segIdx, playback.segProg, idx);
+  };
 }
 
-// Function to update graph UI AND the new Slider Head UI simultaneously
-function updateGraphAndSlider(progressIndex, segmentProgress, highlightedStepIndex = -1) {
-    if (!window.fcfsCtx || fcfsNodes.length === 0) return;
+function updateGraphAndSlider(pi, sp, hl = -1) {
+  if (!window._fcfsCtx || !fcfsNodes.length) return;
 
-    // Draw Graph
-    renderState(window.fcfsCtx, window.fcfsWidth, window.fcfsHeight, window.fcfsPadX, window.fcfsPadY, fcfsNodes, progressIndex, segmentProgress, highlightedStepIndex);
+  renderFrame(window._fcfsCtx, window._fcfsW, window._fcfsH, window._padX, window._padY, fcfsNodes, pi, sp, hl);
 
-    // Calculate Slider Values
-    let curTrack = fcfsNodes[progressIndex].label;
-    if (progressIndex + 1 < fcfsNodes.length && segmentProgress > 0) {
-        let startTrack = fcfsNodes[progressIndex].label;
-        let endTrack = fcfsNodes[progressIndex + 1].label;
-        curTrack = Math.round(startTrack + (endTrack - startTrack) * segmentProgress);
+  // Interpolate current track
+  let track = fcfsNodes[pi].label;
+  if (pi + 1 < fcfsNodes.length && sp > 0) {
+    track = Math.round(fcfsNodes[pi].label + (fcfsNodes[pi + 1].label - fcfsNodes[pi].label) * sp);
+  }
+
+  const tracker = document.getElementById('fcfs-head-tracker');
+  if (tracker) tracker.textContent = track;
+
+  const head = document.getElementById('fcfs-slider-head');
+  if (head) head.style.left = `${(track / globalMax) * 100}%`;
+}
+
+// ── Playback Engine ──
+function onStepStart(idx) {
+  document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`step-card-${idx}`);
+  if (card) card.classList.add('active');
+
+  const ind = document.getElementById('fcfs-step-indicator');
+  if (ind) ind.classList.remove('hidden');
+  document.getElementById('fcfs-step-count').textContent = idx + 1;
+  document.getElementById('fcfs-step-total').textContent = fcfsNodes.length - 1;
+  const dist = Math.abs(fcfsNodes[idx].label - fcfsNodes[idx + 1].label);
+  document.getElementById('fcfs-step-details').innerHTML = `${fcfsNodes[idx].label} → ${fcfsNodes[idx + 1].label} · Δ ${dist} tracks`;
+
+  // Activate control panel glow
+  const panel = document.getElementById('sim-control-panel');
+  if (panel) panel.classList.add('sim-active');
+}
+
+function onStepEnd() {
+  const head = document.getElementById('fcfs-slider-head');
+  if (head) { head.classList.remove('node-pulse'); void head.offsetWidth; head.classList.add('node-pulse'); }
+}
+
+function animateSegment(idx) {
+  return new Promise(resolve => {
+    let t0 = null;
+    function frame(ts) {
+      if (playback.state !== 'playing' && playback.state !== 'stepping') {
+        playback.resolveStep = null; resolve(); return;
+      }
+      if (!t0) t0 = ts;
+      let t = Math.min((ts - t0) / playback.duration, 1);
+      if (t < playback.segProg) { t0 = ts - playback.segProg * playback.duration; t = playback.segProg; }
+      playback.segProg = easeInOutQuad(t);
+      updateGraphAndSlider(idx, playback.segProg, -1);
+      if (t < 1) { playback.raf = requestAnimationFrame(frame); }
+      else {
+        playback.segProg = 1; updateGraphAndSlider(idx, 1, -1);
+        onStepEnd(); playback.resolveStep = null; setTimeout(resolve, 280);
+      }
     }
-
-    // Update Slider UI
-    const headTrackerText = document.getElementById('fcfs-head-tracker');
-    if (headTrackerText) headTrackerText.textContent = curTrack;
-
-    const sliderHead = document.getElementById('fcfs-slider-head');
-    if (sliderHead) {
-        let trackPerc = (curTrack / globalFCFSMaxTrack) * 100;
-        sliderHead.style.left = `${trackPerc}%`;
-    }
-}
-
-// ------------- FCFS Simulator Setup -------------
-
-document.getElementById('fcfs-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    const head = parseInt(document.getElementById('fcfs-head').value, 10);
-    const reqsStr = document.getElementById('fcfs-requests').value;
-    const reqs = parseRequests(reqsStr);
-
-    if (isNaN(head) || reqs.length === 0) return;
-
-    // Calculate
-    const { path, movement } = calculateMovementAndPath(head, reqs, 'FCFS');
-
-    // Unhide results
-    document.getElementById('fcfs-results').classList.remove('hidden');
-
-    // Viz (Animated)
-    const runBtn = document.querySelector('#fcfs-form button[type="submit"]');
-    runBtn.disabled = true; // Disable button while animating
-
-    // Clear the calc table before animating
-    const tbody = document.querySelector('#fcfs-calc-table tbody');
-    tbody.innerHTML = '';
-
-    const stepGrid = document.getElementById('fcfs-step-grid');
-    stepGrid.innerHTML = '';
-
-    // Clear formula equations list
-    const mathCalcList = document.getElementById('fcfs-math-calc-list');
-    if (mathCalcList) mathCalcList.innerHTML = '';
-
-    document.getElementById('fcfs-total-score').textContent = "0";
-    if (document.getElementById('fcfs-math-total')) document.getElementById('fcfs-math-total').textContent = "0";
-    document.getElementById('fcfs-order-display').textContent = "...";
-
-    document.getElementById('fcfs-avg-score').textContent = "0";
-    document.getElementById('fcfs-seek-calc-text').textContent = "100 / 10 = 10 tracks";
-    document.getElementById('fcfs-seek-progress').style.background = `conic-gradient(var(--accent-1) 0%, rgba(255,255,255,0.1) 0%)`;
-
-    // Smooth scroll down to results container immediately
-    document.getElementById('fcfs-results').scrollIntoView({ behavior: 'smooth' });
-
-    // Initialize the logic without starting the animation automatically
-    setTimeout(() => {
-        initializeFCFSGraph('fcfs-canvas', path, 199);
-
-        // Populate Order Display
-        document.getElementById('fcfs-order-display').textContent = path.join(' \u2192 ');
-
-        // Populate Calc Table and Step-by-Step cards
-        for (let i = 0; i < path.length - 1; i++) {
-            let dist = Math.abs(path[i] - path[i + 1]);
-
-            // Calc Table
-            const tr = document.createElement('tr');
-            const tdDesc = document.createElement('td');
-            tdDesc.textContent = `${path[i]} \u2192 ${path[i + 1]}`;
-            const tdDist = document.createElement('td');
-            tdDist.textContent = dist;
-            tr.appendChild(tdDesc);
-            tr.appendChild(tdDist);
-            tbody.appendChild(tr);
-
-            // Math Equations Calculation Entry
-            if (mathCalcList) {
-                const mathDiv = document.createElement('div');
-                mathDiv.classList.add('fade-in');
-                mathDiv.style.animationDelay = `${i * 100}ms`;
-                mathDiv.innerHTML = `|${path[i + 1]} - ${path[i]}| = ${dist}`;
-                mathCalcList.appendChild(mathDiv);
-            }
-
-            // Step Card
-            const card = document.createElement('div');
-            card.className = 'step-card fade-in';
-            card.id = `fcfs-step-card-${i}`; // id for programmatic logic
-            card.style.animationDelay = `${i * 100}ms`;
-            card.innerHTML = `
-                <div class="step-card-num">Step ${i + 1}</div>
-                <div class="step-card-desc">Head moves ${path[i]} &rarr; ${path[i + 1]}</div>
-                <div class="step-card-dist">Distance = ${dist}</div>
-            `;
-
-            // Allow Hovering (mouseenter/mouseleave) to preview, Click to lock
-            card.addEventListener('mouseenter', () => {
-                if (!card.classList.contains('active-locked') && fcfsPlayback.state !== 'playing') {
-                    if (window.renderFCFSGraphStep) window.renderFCFSGraphStep(i + 1);
-                }
-            });
-
-            card.addEventListener('mouseleave', () => {
-                if (fcfsPlayback.state === 'playing') return;
-                let lockedActive = document.querySelector('.step-card.active-locked');
-                if (!card.classList.contains('active-locked')) {
-                    if (lockedActive) {
-                        let lockedIdx = Array.from(stepGrid.children).indexOf(lockedActive);
-                        if (lockedIdx > -1 && window.renderFCFSGraphStep) window.renderFCFSGraphStep(lockedIdx + 1);
-                    } else {
-                        // Reset to current progress
-                        updateGraphAndSlider(fcfsPlayback.segmentIndex, fcfsPlayback.segmentProgress, -1);
-                    }
-                }
-            });
-
-            card.addEventListener('click', () => {
-                if (fcfsPlayback.state === 'playing') pauseSim(); // freeze playback conceptually
-
-                document.querySelectorAll('.step-card').forEach(c => {
-                    c.classList.remove('active');
-                    c.classList.remove('active-locked');
-                });
-                card.classList.add('active');
-                card.classList.add('active-locked');
-                if (window.renderFCFSGraphStep) window.renderFCFSGraphStep(i + 1);
-                document.getElementById('fcfs-canvas').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
-
-            stepGrid.appendChild(card);
-        }
-
-        // Reset highlights when canvas is clicked
-        const canvas = document.getElementById('fcfs-canvas');
-        canvas.onclick = () => {
-            if (fcfsPlayback.state === 'playing') return;
-            document.querySelectorAll('.step-card').forEach(c => {
-                c.classList.remove('active');
-                c.classList.remove('active-locked');
-            });
-            updateGraphAndSlider(fcfsPlayback.segmentIndex, fcfsPlayback.segmentProgress, -1);
-        };
-
-        // Total Score
-        document.getElementById('fcfs-total-score').textContent = movement;
-        if (document.getElementById('fcfs-math-total')) document.getElementById('fcfs-math-total').textContent = movement;
-
-        // Avg Seek Time
-        let requestsCount = reqs.length;
-        let avgSeek = (movement / requestsCount).toFixed(2);
-        document.getElementById('fcfs-avg-score').textContent = avgSeek;
-        document.getElementById('fcfs-seek-calc-text').textContent = `${movement} / ${requestsCount} = ${avgSeek} tracks`;
-
-        // Expand circle incrementally
-        let fillAmt = Math.min((avgSeek / 199) * 100, 100);
-        document.getElementById('fcfs-seek-progress').style.background = `conic-gradient(var(--accent-1) ${fillAmt}%, rgba(255,255,255,0.1) 0%)`;
-
-        runBtn.disabled = false;
-
-        const ind = document.getElementById('fcfs-step-indicator');
-        if (ind) ind.classList.add('hidden');
-
-        // Ensure starting visual is clean
-        document.getElementById('fcfs-slider-head').classList.remove('node-pulse');
-    }, 100);
-});
-
-// ------------- Playback Controls Bindings -------------
-
-function handleStepStart(idx) {
-    if (idx >= fcfsNodes.length - 1) return;
-    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
-    let activeCard = document.getElementById(`fcfs-step-card-${idx}`);
-    if (activeCard) activeCard.classList.add('active');
-
-    const stepInd = document.getElementById('fcfs-step-indicator');
-    stepInd.classList.remove('hidden');
-    document.getElementById('fcfs-step-count').innerText = (idx + 1);
-    document.getElementById('fcfs-step-total').innerText = (fcfsNodes.length - 1);
-    let dist = Math.abs(fcfsNodes[idx].label - fcfsNodes[idx + 1].label);
-    document.getElementById('fcfs-step-details').innerHTML = `Moving from ${fcfsNodes[idx].label} &rarr; ${fcfsNodes[idx + 1].label} <br>Distance: ${dist} tracks`;
-}
-
-function handleStepEnd(idx) {
-    // Pulse animation
-    const sliderHead = document.getElementById('fcfs-slider-head');
-    if (sliderHead) {
-        sliderHead.classList.remove('node-pulse');
-        void sliderHead.offsetWidth; // trigger reflow
-        sliderHead.classList.add('node-pulse');
-    }
-}
-
-function runSegmentAnimation(idx) {
-    return new Promise(resolve => {
-        let startTime = null;
-        function step(time) {
-            if (fcfsPlayback.state !== 'playing' && fcfsPlayback.state !== 'stepping') {
-                // Return out early if paused directly
-                fcfsPlayback.resolveStep = null;
-                resolve();
-                return;
-            }
-
-            if (!startTime) startTime = time;
-            let elapsed = time - startTime;
-            let t = Math.min(elapsed / fcfsPlayback.durationPerSegment, 1.0);
-
-            // Allow resuming gracefully from mid-progress
-            if (t < fcfsPlayback.segmentProgress) {
-                // shift start time artificially 
-                startTime = time - (fcfsPlayback.segmentProgress * fcfsPlayback.durationPerSegment);
-                elapsed = time - startTime;
-                t = Math.min(elapsed / fcfsPlayback.durationPerSegment, 1.0);
-            }
-
-            fcfsPlayback.segmentProgress = easeInOutQuad(t);
-            updateGraphAndSlider(idx, fcfsPlayback.segmentProgress, -1);
-
-            if (t < 1.0) {
-                fcfsPlayback.reqAnimFrame = requestAnimationFrame(step);
-            } else {
-                fcfsPlayback.segmentProgress = 1.0;
-                updateGraphAndSlider(idx, 1.0, -1);
-                handleStepEnd(idx);
-                fcfsPlayback.resolveStep = null;
-                setTimeout(resolve, 300); // 300ms pause matching the pulse
-            }
-        }
-        fcfsPlayback.resolveStep = resolve;
-        fcfsPlayback.reqAnimFrame = requestAnimationFrame(step);
-    });
+    playback.resolveStep = resolve;
+    playback.raf = requestAnimationFrame(frame);
+  });
 }
 
 function playSim() {
-    if (fcfsNodes.length === 0 || fcfsPlayback.state === 'finished') return;
-    fcfsPlayback.state = 'playing';
+  if (!fcfsNodes.length || playback.state === 'finished') return;
+  playback.state = 'playing';
+  setBtns(false, true, false, false);
+  document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active-locked'));
 
-    document.getElementById('play-btn').disabled = true;
-    document.getElementById('pause-btn').disabled = false;
-    document.getElementById('next-btn').disabled = true;
-
-    document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active-locked'));
-
-    (async function loop() {
-        while (fcfsPlayback.segmentIndex < fcfsNodes.length - 1) {
-            if (fcfsPlayback.state !== 'playing') return; // Interrupted
-
-            if (fcfsPlayback.segmentProgress === 0.0) {
-                handleStepStart(fcfsPlayback.segmentIndex);
-            }
-
-            await runSegmentAnimation(fcfsPlayback.segmentIndex);
-
-            if (fcfsPlayback.state !== 'playing') return; // Might have paused during wait
-
-            // Move to next logical step
-            fcfsPlayback.segmentIndex++;
-            fcfsPlayback.segmentProgress = 0.0;
-        }
-
-        // Finished
-        fcfsPlayback.state = 'finished';
-        document.getElementById('play-btn').disabled = true;
-        document.getElementById('pause-btn').disabled = true;
-        document.getElementById('next-btn').disabled = true;
-        document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
-        const stepInd = document.getElementById('fcfs-step-indicator');
-        if (stepInd) stepInd.classList.add('hidden');
-    })();
+  (async function loop() {
+    while (playback.segIdx < fcfsNodes.length - 1) {
+      if (playback.state !== 'playing') return;
+      if (playback.segProg === 0) onStepStart(playback.segIdx);
+      await animateSegment(playback.segIdx);
+      if (playback.state !== 'playing') return;
+      playback.segIdx++; playback.segProg = 0;
+    }
+    finishSim();
+  })();
 }
 
 function pauseSim() {
-    if (fcfsPlayback.state !== 'playing' && fcfsPlayback.state !== 'stepping') return;
-    fcfsPlayback.state = 'paused';
-    if (fcfsPlayback.reqAnimFrame) cancelAnimationFrame(fcfsPlayback.reqAnimFrame);
-    if (fcfsPlayback.resolveStep) {
-        fcfsPlayback.resolveStep();
-        fcfsPlayback.resolveStep = null;
-    }
-
-    document.getElementById('play-btn').disabled = false;
-    document.getElementById('pause-btn').disabled = true;
-    document.getElementById('next-btn').disabled = false;
+  if (playback.state !== 'playing' && playback.state !== 'stepping') return;
+  playback.state = 'paused';
+  if (playback.raf) cancelAnimationFrame(playback.raf);
+  if (playback.resolveStep) { playback.resolveStep(); playback.resolveStep = null; }
+  setBtns(true, false, true, true);
 }
 
 async function nextStep() {
-    if (fcfsNodes.length === 0 || fcfsPlayback.segmentIndex >= fcfsNodes.length - 1) return;
-    if (fcfsPlayback.state === 'playing') pauseSim();
-
-    fcfsPlayback.state = 'stepping';
-    document.getElementById('play-btn').disabled = true;
-    document.getElementById('pause-btn').disabled = true;
-    document.getElementById('next-btn').disabled = true;
-
-    if (fcfsPlayback.segmentProgress === 0.0) {
-        handleStepStart(fcfsPlayback.segmentIndex);
-    }
-
-    await runSegmentAnimation(fcfsPlayback.segmentIndex);
-
-    fcfsPlayback.segmentIndex++;
-    fcfsPlayback.segmentProgress = 0.0;
-
-    if (fcfsPlayback.segmentIndex < fcfsNodes.length - 1) {
-        fcfsPlayback.state = 'paused';
-        document.getElementById('play-btn').disabled = false;
-        document.getElementById('pause-btn').disabled = true;
-        document.getElementById('next-btn').disabled = false;
-    } else {
-        fcfsPlayback.state = 'finished';
-        document.getElementById('play-btn').disabled = true;
-        document.getElementById('pause-btn').disabled = true;
-        document.getElementById('next-btn').disabled = true;
-        document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
-        const stepInd = document.getElementById('fcfs-step-indicator');
-        if (stepInd) stepInd.classList.add('hidden');
-    }
+  if (!fcfsNodes.length || playback.segIdx >= fcfsNodes.length - 1) return;
+  if (playback.state === 'playing') pauseSim();
+  playback.state = 'stepping';
+  setBtns(false, false, false, false);
+  if (playback.segProg === 0) onStepStart(playback.segIdx);
+  await animateSegment(playback.segIdx);
+  playback.segIdx++; playback.segProg = 0;
+  if (playback.segIdx < fcfsNodes.length - 1) { playback.state = 'paused'; setBtns(true, false, true, true); }
+  else finishSim();
 }
 
 function resetSim() {
-    pauseSim();
-    fcfsPlayback.state = 'idle';
-    fcfsPlayback.segmentIndex = 0;
-    fcfsPlayback.segmentProgress = 0.0;
+  pauseSim();
+  playback.state = 'idle'; playback.segIdx = 0; playback.segProg = 0;
+  setBtns(true, false, true, true);
+  document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active', 'active-locked'));
+  const ind = document.getElementById('fcfs-step-indicator');
+  if (ind) ind.classList.add('hidden');
+  const head = document.getElementById('fcfs-slider-head');
+  if (head) head.classList.remove('node-pulse');
+  const panel = document.getElementById('sim-control-panel');
+  if (panel) panel.classList.remove('sim-active');
+  updateGraphAndSlider(0, 0, -1);
+}
 
-    document.getElementById('play-btn').disabled = false;
-    document.getElementById('pause-btn').disabled = true;
-    document.getElementById('next-btn').disabled = false;
+function finishSim() {
+  playback.state = 'finished';
+  setBtns(false, false, false, true);
+  document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
+  const ind = document.getElementById('fcfs-step-indicator');
+  if (ind) ind.classList.add('hidden');
+  const panel = document.getElementById('sim-control-panel');
+  if (panel) panel.classList.remove('sim-active');
+}
 
-    document.querySelectorAll('.step-card').forEach(c => {
-        c.classList.remove('active');
-        c.classList.remove('active-locked');
-    });
-
-    const stepInd = document.getElementById('fcfs-step-indicator');
-    if (stepInd) stepInd.classList.add('hidden');
-    const sliderHead = document.getElementById('fcfs-slider-head');
-    if (sliderHead) sliderHead.classList.remove('node-pulse');
-
-    updateGraphAndSlider(0, 0.0, -1);
+function setBtns(play, pause, next, reset) {
+  document.getElementById('play-btn').disabled  = !play;
+  document.getElementById('pause-btn').disabled = !pause;
+  document.getElementById('next-btn').disabled  = !next;
+  document.getElementById('reset-btn').disabled = !reset;
 }
 
 document.getElementById('play-btn').addEventListener('click', playSim);
@@ -608,436 +366,451 @@ document.getElementById('pause-btn').addEventListener('click', pauseSim);
 document.getElementById('next-btn').addEventListener('click', nextStep);
 document.getElementById('reset-btn').addEventListener('click', resetSim);
 
+// ══════════════════════════════════════════════════════
+//   FCFS FORM
+// ══════════════════════════════════════════════════════
+document.getElementById('fcfs-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const head = parseInt(document.getElementById('fcfs-head').value, 10);
+  const reqs = parseRequests(document.getElementById('fcfs-requests').value);
+  if (isNaN(head) || !reqs.length) return;
 
-// ------------- Generic Graph Animation (Used for Comparison) -------------
-window.compAnimFrames = window.compAnimFrames || {};
-window.compAnimRuns = window.compAnimRuns || {};
+  const { path, movement } = calculateMovementAndPath(head, reqs, 'FCFS');
 
-async function drawGraphAnimated(canvasId, path, maxTrack = 199) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+  document.getElementById('fcfs-results').classList.remove('hidden');
 
-    // Concurrency protection: cancel any existing frame and register new run identity
-    if (window.compAnimFrames[canvasId]) {
-        cancelAnimationFrame(window.compAnimFrames[canvasId]);
-    }
-    const currentRunId = Symbol();
-    window.compAnimRuns[canvasId] = currentRunId;
+  const runBtn = this.querySelector('button[type="submit"]');
+  runBtn.disabled = true;
 
-    const isComparison = canvasId.startsWith('comp-');
-    if (isComparison) {
-        // Compact vertical setup: Lock height and widths
-        canvas.width = canvas.parentElement.clientWidth - 20; // 10px padding bounds
-        canvas.height = Math.min(25 + (path.length * 8) + 10, 110);
-    }
+  // Clear
+  document.querySelector('#fcfs-calc-table tbody').innerHTML = '';
+  document.getElementById('fcfs-step-grid').innerHTML = '';
+  const mathList = document.getElementById('fcfs-math-calc-list');
+  if (mathList) mathList.innerHTML = '';
+  document.getElementById('fcfs-order-display').textContent = '...';
+  document.getElementById('fcfs-total-score').textContent = '0';
+  if (document.getElementById('fcfs-math-total')) document.getElementById('fcfs-math-total').textContent = '0';
 
-    const width = canvas.width;
-    const height = canvas.height;
+  document.getElementById('fcfs-results').scrollIntoView({ behavior: 'smooth' });
 
-    const paddingX = isComparison ? 20 : 30;
-    const paddingY = isComparison ? 15 : 20;
-    const usableWidth = width - (paddingX * 2);
-    const usableHeight = height - (paddingY * 2);
-    const stepY = isComparison ? 8 : usableHeight / (path.length > 1 ? path.length - 1 : 1);
-    const baseY = isComparison ? 20 : paddingY;
-    const getX = (val) => paddingX + (val / maxTrack) * usableWidth;
+  setTimeout(() => {
+    initFCFSGraph('fcfs-canvas', path, 199);
+    document.getElementById('fcfs-order-display').textContent = path.join(' → ');
 
-    const nodes = path.map((val, i) => {
-        let yPos;
-        if (isComparison) {
-            yPos = baseY + (i * 8);
-        } else {
-            yPos = paddingY + (i * stepY);
+    const tbody = document.querySelector('#fcfs-calc-table tbody');
+    const stepGrid = document.getElementById('fcfs-step-grid');
+
+    for (let i = 0; i < path.length - 1; i++) {
+      const dist = Math.abs(path[i] - path[i + 1]);
+
+      // Table row
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${path[i]} → ${path[i + 1]}</td><td>${dist}</td>`;
+      tbody.appendChild(tr);
+
+      // Math list
+      if (mathList) {
+        const d = document.createElement('div');
+        d.className = 'fade-in';
+        d.style.animationDelay = `${i * 70}ms`;
+        d.innerHTML = `|${path[i + 1]} − ${path[i]}| = <strong style="color:var(--gold)">${dist}</strong>`;
+        mathList.appendChild(d);
+      }
+
+      // Step card
+      const card = document.createElement('div');
+      card.className = 'step-card fade-in';
+      card.id = `step-card-${i}`;
+      card.style.animationDelay = `${i * 70}ms`;
+      card.innerHTML = `
+        <div class="step-card-num">Step ${i + 1}</div>
+        <div class="step-card-desc">${path[i]} → ${path[i + 1]}</div>
+        <div class="step-card-dist">Δ ${dist} tracks</div>
+      `;
+
+      card.addEventListener('mouseenter', () => {
+        if (!card.classList.contains('active-locked') && playback.state !== 'playing')
+          if (window.previewStep) window.previewStep(i + 1);
+      });
+      card.addEventListener('mouseleave', () => {
+        if (playback.state === 'playing') return;
+        const locked = document.querySelector('.step-card.active-locked');
+        if (!card.classList.contains('active-locked')) {
+          if (locked) { const li = Array.from(stepGrid.children).indexOf(locked); if (li > -1) window.previewStep(li + 1); }
+          else updateGraphAndSlider(playback.segIdx, playback.segProg, -1);
         }
-        return {
-            x: getX(val),
-            y: yPos,
-            label: val
-        };
+      });
+      card.addEventListener('click', () => {
+        if (playback.state === 'playing') pauseSim();
+        document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active', 'active-locked'));
+        card.classList.add('active', 'active-locked');
+        if (window.previewStep) window.previewStep(i + 1);
+        document.getElementById('fcfs-canvas').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+
+      stepGrid.appendChild(card);
+    }
+
+    // Canvas click reset
+    document.getElementById('fcfs-canvas').onclick = () => {
+      if (playback.state === 'playing') return;
+      document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active', 'active-locked'));
+      updateGraphAndSlider(playback.segIdx, playback.segProg, -1);
+    };
+
+    // Stats
+    document.getElementById('fcfs-total-score').textContent = movement;
+    if (document.getElementById('fcfs-math-total')) document.getElementById('fcfs-math-total').textContent = movement;
+
+    const avg = (movement / reqs.length).toFixed(2);
+    ['fcfs-avg-score','fcfs-avg-score-2'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = avg; });
+    ['fcfs-seek-calc-text','fcfs-seek-calc-text-2'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = `${movement} / ${reqs.length} = ${avg} tracks`; });
+
+    const fill = Math.min((avg / 199) * 100, 100);
+    ['fcfs-seek-progress','fcfs-seek-progress-2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.background = `conic-gradient(var(--teal) ${fill}%, rgba(255,255,255,0.04) 0%)`;
     });
 
-    function renderStateComparison(progressIndex, segmentProgress) {
-        ctx.clearRect(0, 0, width, height);
-
-        // Base track line
-        ctx.beginPath();
-        ctx.moveTo(paddingX, paddingY);
-        ctx.lineTo(width - paddingX, paddingY);
-        ctx.strokeStyle = "rgba(255,255,255,0.2)";
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        if (isComparison) {
-            // Faint horizontal guides
-            for (let i = 0; i < nodes.length; i++) {
-                let gy = baseY + (i * 8);
-                ctx.beginPath();
-                ctx.moveTo(paddingX, gy);
-                ctx.lineTo(width - paddingX, gy);
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
-        }
-
-        if (nodes.length === 0) return;
-
-        // Lines
-        for (let i = 1; i < nodes.length; i++) {
-            if (i > progressIndex + 1) break;
-
-            let startNode = nodes[i - 1];
-            let endNode = nodes[i];
-
-            let currentEndX = endNode.x;
-            let currentEndY = endNode.y;
-
-            let isCurrentSegment = (i === progressIndex + 1);
-            if (isCurrentSegment) {
-                currentEndX = startNode.x + (endNode.x - startNode.x) * segmentProgress;
-                currentEndY = startNode.y + (endNode.y - startNode.y) * segmentProgress;
-            }
-
-            let grad = ctx.createLinearGradient(startNode.x, startNode.y, endNode.x, endNode.y);
-            grad.addColorStop(0, "#FF2E63");
-            grad.addColorStop(1, "#08D9D6");
-
-            ctx.beginPath();
-            ctx.moveTo(startNode.x, startNode.y);
-            ctx.lineTo(currentEndX, currentEndY);
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = isComparison ? 2.5 : 2;
-
-            // Faint past lines
-            if (!isCurrentSegment && isComparison) {
-                ctx.globalAlpha = 0.5;
-            } else {
-                ctx.globalAlpha = 1.0;
-            }
-
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-        }
-
-        // Pending nodes (faded)
-        for (let i = progressIndex + 1; i < nodes.length; i++) {
-            drawSolidNode(ctx, nodes[i].x, nodes[i].y, isComparison ? "" : nodes[i].label, "#EAEAEA", "#412653", isComparison ? 2.5 : 2, 0.4);
-        }
-
-        // Visited nodes
-        for (let i = 0; i <= progressIndex; i++) {
-            let isInitial = i === 0;
-            let nInfo = nodes[i];
-            let color = isInitial ? "#FF2E63" : "#08D9D6";
-
-            let opacity = 1.0;
-            if (isComparison && i < progressIndex) opacity = 0.5;
-
-            let rad = isComparison ? (isInitial ? 3.5 : 3) : (isInitial ? 4 : 3);
-            drawSolidNode(ctx, nInfo.x, nInfo.y, isComparison ? "" : nInfo.label, color, "#fff", rad, opacity);
-        }
-
-        // Moving head point
-        if (segmentProgress > 0 && segmentProgress < 1 && progressIndex + 1 < nodes.length) {
-            let startNode = nodes[progressIndex];
-            let endNode = nodes[progressIndex + 1];
-            let curX = startNode.x + (endNode.x - startNode.x) * segmentProgress;
-            let curY = startNode.y + (endNode.y - startNode.y) * segmentProgress;
-            drawSolidNode(ctx, curX, curY, "", "#FF2E63", "#fff", isComparison ? 3 : 3, 1.0);
-        }
-    }
-
-    if (nodes.length <= 1) {
-        renderStateComparison(0, 1.0);
-        return;
-    }
-
-    const durationPerSegment = 600;
-
-    for (let i = 0; i < nodes.length - 1; i++) {
-        // Abort this animation run if a newer one was started
-        if (window.compAnimRuns[canvasId] !== currentRunId) return;
-
-        await new Promise(resolve => {
-            let startTime = null;
-            function step(time) {
-                if (window.compAnimRuns[canvasId] !== currentRunId) {
-                    resolve();
-                    return;
-                }
-
-                if (!startTime) startTime = time;
-                let elapsed = time - startTime;
-                let t = Math.min(elapsed / durationPerSegment, 1.0);
-
-                let easedT = easeInOutQuad(t);
-                renderStateComparison(i, easedT);
-
-                if (t < 1.0) {
-                    window.compAnimFrames[canvasId] = requestAnimationFrame(step);
-                } else {
-                    renderStateComparison(i + 1, 0.0);
-                    setTimeout(resolve, 80);
-                }
-            }
-            window.compAnimFrames[canvasId] = requestAnimationFrame(step);
-        });
-    }
-
-    if (window.compAnimRuns[canvasId] === currentRunId) {
-        renderStateComparison(nodes.length - 1, 1.0);
-    }
-}
-
-
-// ------------- Comparison Simulator Setup -------------
-
-document.getElementById('comp-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    const head = parseInt(document.getElementById('comp-head').value, 10);
-    const reqsStr = document.getElementById('comp-requests').value;
-    const reqs = parseRequests(reqsStr);
-
-    if (isNaN(head) || reqs.length === 0) return;
-
-    const algos = ['FCFS', 'SSTF', 'SCAN', 'C-SCAN', 'LOOK'];
-    const results = [];
-
-    // Since comparison runs multiple concurrently, use the animated draw graph but immediately populate tables
-    algos.forEach(algo => {
-        const res = calculateMovementAndPath(head, reqs, algo);
-        results.push({ algo, path: res.path, movement: res.movement });
-
-        const algoId = algo.toLowerCase().replace('-', '');
-        drawGraphAnimated(`comp-${algoId}-canvas`, res.path);
-        document.getElementById(`comp-${algoId}-order`).textContent = res.path.join(' \u2192 ');
-    });
-
-    // Unhide Results
-    document.getElementById('comp-results').classList.remove('hidden');
-
-    // Comparison Table Update
-    const tbody = document.querySelector('#comparison-table tbody');
-    tbody.innerHTML = '';
-
-    let minMove = Math.min(...results.map(r => r.movement));
-
-    results.forEach(res => {
-        const tr = document.createElement('tr');
-        if (res.movement === minMove) tr.classList.add('best-algo');
-
-        const tdAlgo = document.createElement('td');
-        tdAlgo.textContent = res.algo;
-        if (res.movement === minMove) tdAlgo.textContent += ' (Best)';
-
-        const tdMove = document.createElement('td');
-        tdMove.textContent = res.movement;
-
-        tr.appendChild(tdAlgo);
-        tr.appendChild(tdMove);
-        tbody.appendChild(tr);
-    });
-
-    // Smooth scroll
-    document.getElementById('comp-results').scrollIntoView({ behavior: 'smooth' });
+    runBtn.disabled = false;
+    const ind = document.getElementById('fcfs-step-indicator');
+    if (ind) ind.classList.add('hidden');
+    const head = document.getElementById('fcfs-slider-head');
+    if (head) head.classList.remove('node-pulse');
+  }, 120);
 });
 
-// ------------- FCFS CPU Simulator Setup -------------
-let processCount = 4;
-let perfChartInstance = null;
-let metricsPieInstance = null;
+// ══════════════════════════════════════════════════════
+//   COMPARISON GRAPH DRAWING
+// ══════════════════════════════════════════════════════
+window._compFrames = {};
+window._compRuns   = {};
 
-const addBtn = document.getElementById('add-process-btn');
-const rmBtn = document.getElementById('remove-process-btn');
-const cpuRunBtn = document.getElementById('run-cpu-sim-btn');
-const tbodyCpu = document.querySelector('#process-table tbody');
+async function drawCompGraph(canvasId, path, maxTrack = 199) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
 
-if (addBtn) {
-    addBtn.addEventListener('click', () => {
-        processCount++;
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>P${processCount}</td>
-            <td><input type="number" class="process-arrival cpu-input" value="${Math.floor(Math.random() * 10)}" min="0"></td>
-            <td><input type="number" class="process-burst cpu-input" value="${Math.floor(Math.random() * 10) + 1}" min="1"></td>
-        `;
-        tbodyCpu.appendChild(row);
+  if (window._compFrames[canvasId]) cancelAnimationFrame(window._compFrames[canvasId]);
+  const runId = Symbol();
+  window._compRuns[canvasId] = runId;
+
+  canvas.width  = (canvas.parentElement.clientWidth - 20) || 600;
+  canvas.height = Math.min(24 + path.length * 8 + 10, 110);
+
+  const w = canvas.width, h = canvas.height;
+  const padX = 18, padY = 14;
+  const usableW = w - padX * 2;
+  const getX = v => padX + (v / maxTrack) * usableW;
+  const baseY = padY;
+
+  const nodes = path.map((v, i) => ({ x: getX(v), y: baseY + i * 8, label: v }));
+
+  function draw(pi, sp) {
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.beginPath();
+    ctx.moveTo(padX, padY);
+    ctx.lineTo(w - padX, padY);
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Faint horizontal guides
+    for (let i = 0; i < nodes.length; i++) {
+      ctx.beginPath();
+      ctx.moveTo(padX, baseY + i * 8);
+      ctx.lineTo(w - padX, baseY + i * 8);
+      ctx.strokeStyle = C.grid;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Lines
+    for (let i = 1; i < nodes.length; i++) {
+      if (i > pi + 1) break;
+      const sn = nodes[i - 1], en = nodes[i];
+      const isCur = i === pi + 1;
+      const ex = isCur ? sn.x + (en.x - sn.x) * sp : en.x;
+      const ey = isCur ? sn.y + (en.y - sn.y) * sp : en.y;
+
+      const g = ctx.createLinearGradient(sn.x, sn.y, en.x, en.y);
+      g.addColorStop(0, C.completed); g.addColorStop(1, C.path);
+
+      ctx.beginPath();
+      ctx.moveTo(sn.x, sn.y);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = isCur ? C.active : g;
+      ctx.lineWidth = isCur ? 3 : 2.5;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = !isCur ? 0.58 : 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Pending
+    for (let i = pi + 1; i < nodes.length; i++) {
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath(); ctx.arc(nodes[i].x, nodes[i].y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = C.pending; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Visited — completed = teal, initial/current active = gold
+    for (let i = 0; i <= pi; i++) {
+      const n = nodes[i], isInit = i === 0, isCurrent = i === pi;
+      ctx.globalAlpha = i < pi ? 0.62 : 1;
+      const nodeColor = (isInit || isCurrent) ? C.active : C.completed;
+      if (isInit || isCurrent) { ctx.shadowColor = nodeColor; ctx.shadowBlur = 10; }
+      ctx.beginPath(); ctx.arc(n.x, n.y, isInit ? 3.5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = nodeColor; ctx.fill();
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    }
+
+    // Moving dot — gold = disk head indicator
+    if (sp > 0 && sp < 1 && pi + 1 < nodes.length) {
+      const sn = nodes[pi], en = nodes[pi + 1];
+      ctx.shadowColor = C.active; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(sn.x + (en.x - sn.x) * sp, sn.y + (en.y - sn.y) * sp, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = C.active; ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  if (nodes.length <= 1) { draw(0, 1); return; }
+
+  for (let i = 0; i < nodes.length - 1; i++) {
+    if (window._compRuns[canvasId] !== runId) return;
+    await new Promise(resolve => {
+      let t0 = null;
+      function f(ts) {
+        if (window._compRuns[canvasId] !== runId) { resolve(); return; }
+        if (!t0) t0 = ts;
+        const t = Math.min((ts - t0) / 550, 1);
+        draw(i, easeInOutQuad(t));
+        if (t < 1) window._compFrames[canvasId] = requestAnimationFrame(f);
+        else { draw(i + 1, 0); setTimeout(resolve, 55); }
+      }
+      window._compFrames[canvasId] = requestAnimationFrame(f);
     });
+  }
+  if (window._compRuns[canvasId] === runId) draw(nodes.length - 1, 1);
 }
 
-if (rmBtn) {
-    rmBtn.addEventListener('click', () => {
-        if (processCount > 1) {
-            tbodyCpu.removeChild(tbodyCpu.lastElementChild);
-            processCount--;
-        }
+// ══════════════════════════════════════════════════════
+//   COMPARISON FORM
+// ══════════════════════════════════════════════════════
+document.getElementById('comp-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const head = parseInt(document.getElementById('comp-head').value, 10);
+  const reqs = parseRequests(document.getElementById('comp-requests').value);
+  if (isNaN(head) || !reqs.length) return;
+
+  const algos = ['FCFS','SSTF','SCAN','C-SCAN','LOOK'];
+  const results = [];
+
+  algos.forEach(algo => {
+    const res = calculateMovementAndPath(head, reqs, algo);
+    results.push({ algo, ...res });
+    const id = algo.toLowerCase().replace('-', '');
+    drawCompGraph(`comp-${id}-canvas`, res.path);
+    document.getElementById(`comp-${id}-order`).textContent = res.path.join(' → ');
+  });
+
+  document.getElementById('comp-results').classList.remove('hidden');
+
+  const tbody = document.querySelector('#comparison-table tbody');
+  tbody.innerHTML = '';
+  const minMove = Math.min(...results.map(r => r.movement));
+
+  results.forEach(res => {
+    const tr = document.createElement('tr');
+    if (res.movement === minMove) tr.classList.add('best-algo');
+    tr.innerHTML = `
+      <td>${res.algo}${res.movement === minMove ? ' ★' : ''}</td>
+      <td>${res.movement}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('comp-results').scrollIntoView({ behavior: 'smooth' });
+});
+
+// ══════════════════════════════════════════════════════
+//   CPU SCHEDULER
+// ══════════════════════════════════════════════════════
+let processCount = 4, perfChart = null;
+const addBtn   = document.getElementById('add-process-btn');
+const rmBtn    = document.getElementById('remove-process-btn');
+const cpuBtn   = document.getElementById('run-cpu-sim-btn');
+const cpuTbody = document.querySelector('#process-table tbody');
+
+if (addBtn) addBtn.addEventListener('click', () => {
+  processCount++;
+  const row = document.createElement('tr');
+  row.innerHTML = `<td>P${processCount}</td>
+    <td><input type="number" class="process-arrival cpu-input" value="${Math.floor(Math.random()*8)}" min="0"></td>
+    <td><input type="number" class="process-burst cpu-input" value="${Math.floor(Math.random()*8)+1}" min="1"></td>`;
+  cpuTbody.appendChild(row);
+});
+
+if (rmBtn) rmBtn.addEventListener('click', () => {
+  if (processCount > 1) { cpuTbody.removeChild(cpuTbody.lastElementChild); processCount--; }
+});
+
+if (cpuBtn) cpuBtn.addEventListener('click', () => {
+  const rows = document.querySelectorAll('#process-table tbody tr');
+  let procs = [];
+  rows.forEach((row, idx) => {
+    procs.push({
+      id: `P${idx+1}`,
+      arrival: parseInt(row.querySelector('.process-arrival').value) || 0,
+      burst:   parseInt(row.querySelector('.process-burst').value)   || 1,
+      start:0, completion:0, waiting:0, turnaround:0, response:0
     });
+  });
+
+  procs.sort((a,b) => a.arrival - b.arrival);
+
+  let t = 0, totalBurst = 0, totalWait = 0, totalTurn = 0, totalResp = 0, gantt = [];
+
+  procs.forEach(p => {
+    if (t < p.arrival) { gantt.push({ type:'idle', start:t, end:p.arrival, duration:p.arrival-t }); t = p.arrival; }
+    p.start = t; p.completion = t + p.burst;
+    p.turnaround = p.completion - p.arrival;
+    p.waiting    = p.turnaround - p.burst;
+    p.response   = p.start - p.arrival;
+    gantt.push({ type:'process', id:p.id, start:p.start, end:p.completion, duration:p.burst });
+    t = p.completion;
+    totalBurst += p.burst; totalWait += p.waiting; totalTurn += p.turnaround; totalResp += p.response;
+  });
+
+  const n = procs.length;
+  const makespan = t - procs[0].arrival;
+  const cpuUtil  = makespan > 0 ? ((totalBurst/makespan)*100).toFixed(2) : 100;
+  const throughput = makespan > 0 ? (n/makespan).toFixed(3) : n;
+
+  const resTbody = document.querySelector('#cpu-calc-table tbody');
+  resTbody.innerHTML = '';
+  [...procs].sort((a,b) => parseInt(a.id.slice(1)) - parseInt(b.id.slice(1))).forEach(p => {
+    resTbody.innerHTML += `<tr><td>${p.id}</td><td>${p.arrival}</td><td>${p.burst}</td><td>${p.start}</td><td>${p.completion}</td><td>${p.waiting}</td><td>${p.turnaround}</td><td>${p.response}</td></tr>`;
+  });
+
+  document.getElementById('cpu-results-panel').classList.remove('hidden');
+  document.getElementById('dash-cpu-util').textContent  = `${cpuUtil}%`;
+  document.getElementById('dash-throughput').textContent = throughput;
+  document.getElementById('dash-avg-wait').textContent   = (totalWait/n).toFixed(2);
+  document.getElementById('dash-avg-turn').textContent   = (totalTurn/n).toFixed(2);
+  document.getElementById('dash-avg-resp').textContent   = (totalResp/n).toFixed(2);
+
+  buildGantt(gantt, t);
+  buildCPUChart([...procs].sort((a,b) => parseInt(a.id.slice(1)) - parseInt(b.id.slice(1))));
+
+  document.getElementById('cpu-results-panel').scrollIntoView({ behavior:'smooth' });
+});
+
+function buildGantt(blocks, total) {
+  const con = document.getElementById('gantt-chart-container');
+  const ax  = document.getElementById('gantt-time-axis');
+  con.innerHTML = ''; ax.innerHTML = '';
+  if (!total) return;
+
+  const palette = ['#4A8280','#A5C5C5','#FBE36A','#3a6664','#7ab8b6','#c9b040'];
+
+  blocks.forEach((b, i) => {
+    const pct = (b.duration / total) * 100;
+    const el = document.createElement('div');
+    el.className = b.type === 'idle' ? 'gantt-block gantt-idle' : 'gantt-block';
+    el.style.width = '0%';
+    if (b.type === 'process') {
+      el.style.background = palette[parseInt(b.id.slice(1)) % palette.length];
+      el.textContent = b.id;
+    }
+    con.appendChild(el);
+    setTimeout(() => el.style.width = `${pct}%`, 80);
+    if (i === 0) addTick(ax, b.start, 0);
+    addTick(ax, b.end, (b.end / total) * 100);
+  });
 }
 
-if (cpuRunBtn) {
-    cpuRunBtn.addEventListener('click', () => {
-        const rows = document.querySelectorAll('#process-table tbody tr');
-        let processes = [];
-
-        rows.forEach((row, index) => {
-            const id = `P${index + 1}`;
-            const arrival = parseInt(row.querySelector('.process-arrival').value) || 0;
-            const burst = parseInt(row.querySelector('.process-burst').value) || 1;
-            processes.push({ id, arrival, burst, start: 0, completion: 0, waiting: 0, turnaround: 0, response: 0 });
-        });
-
-        processes.sort((a, b) => a.arrival - b.arrival);
-
-        let currentTime = 0;
-        let totalBurst = 0;
-        let totalWait = 0;
-        let totalTurn = 0;
-        let totalResp = 0;
-        let ganttBlocks = [];
-
-        processes.forEach(p => {
-            if (currentTime < p.arrival) {
-                ganttBlocks.push({ type: 'idle', start: currentTime, end: p.arrival, duration: p.arrival - currentTime });
-                currentTime = p.arrival;
-            }
-            p.start = currentTime;
-            p.completion = currentTime + p.burst;
-            p.turnaround = p.completion - p.arrival;
-            p.waiting = p.turnaround - p.burst;
-            p.response = p.start - p.arrival;
-
-            ganttBlocks.push({ type: 'process', id: p.id, start: p.start, end: p.completion, duration: p.burst });
-
-            currentTime = p.completion;
-            totalBurst += p.burst;
-            totalWait += p.waiting;
-            totalTurn += p.turnaround;
-            totalResp += p.response;
-        });
-
-        const n = processes.length;
-        const avgWait = (totalWait / n).toFixed(2);
-        const avgTurn = (totalTurn / n).toFixed(2);
-        const avgResp = (totalResp / n).toFixed(2);
-        const firstArrival = processes[0].arrival;
-        const finalCompletion = currentTime;
-        const makespan = finalCompletion - firstArrival;
-        const cpuUtil = makespan > 0 ? ((totalBurst / makespan) * 100).toFixed(2) : 100;
-        const throughput = makespan > 0 ? (n / makespan).toFixed(3) : n;
-
-        // Results table
-        const resTbody = document.querySelector('#cpu-calc-table tbody');
-        resTbody.innerHTML = '';
-        const outProcesses = [...processes].sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
-
-        outProcesses.forEach(p => {
-            resTbody.innerHTML += `
-                <tr>
-                    <td>${p.id}</td>
-                    <td>${p.arrival}</td>
-                    <td>${p.burst}</td>
-                    <td>${p.start}</td>
-                    <td>${p.completion}</td>
-                    <td>${p.waiting}</td>
-                    <td>${p.turnaround}</td>
-                    <td>${p.response}</td>
-                </tr>
-            `;
-        });
-
-        // Show panel
-        const resultsPanel = document.getElementById('cpu-results-panel');
-        resultsPanel.classList.remove('hidden');
-
-        document.getElementById('dash-cpu-util').innerText = `${cpuUtil}%`;
-        document.getElementById('dash-throughput').innerText = throughput;
-        document.getElementById('dash-avg-wait').innerText = avgWait;
-        document.getElementById('dash-avg-turn').innerText = avgTurn;
-        document.getElementById('dash-avg-resp').innerText = avgResp;
-
-        renderGanttChart(ganttBlocks, finalCompletion);
-        renderCPUCharts(outProcesses, avgWait, avgTurn, avgResp);
-
-        resultsPanel.scrollIntoView({ behavior: 'smooth' });
-    });
+function addTick(ax, time, pct) {
+  const t = document.createElement('div');
+  t.className = 'gantt-tick'; t.style.left = `${pct}%`; t.textContent = time;
+  ax.appendChild(t);
 }
 
-function renderGanttChart(blocks, totalTime) {
-    const container = document.getElementById('gantt-chart-container');
-    const axis = document.getElementById('gantt-time-axis');
-    container.innerHTML = '';
-    axis.innerHTML = '';
-
-    if (totalTime === 0) return;
-
-    const colors = ['#D174D2', '#E0563F', '#58a6ff', '#3fb950', '#d29922', '#f85149'];
-
-    blocks.forEach((bg, index) => {
-        const widthPercent = (bg.duration / totalTime) * 100;
-        const blockEl = document.createElement('div');
-        blockEl.className = bg.type === 'idle' ? 'gantt-block gantt-idle' : 'gantt-block';
-        blockEl.style.width = '0%';
-
-        if (bg.type === 'process') {
-            const colorIdx = parseInt(bg.id.substring(1)) % colors.length;
-            blockEl.style.backgroundColor = colors[colorIdx];
-            blockEl.innerText = bg.id;
-        }
-
-        container.appendChild(blockEl);
-
-        setTimeout(() => {
-            blockEl.style.width = `${widthPercent}%`;
-        }, 100);
-
-        if (index === 0) {
-            addGanttTick(axis, bg.start, 0);
-        }
-
-        const endPercent = (bg.end / totalTime) * 100;
-        addGanttTick(axis, bg.end, endPercent);
-    });
+function buildCPUChart(procs) {
+  Chart.defaults.color = '#A5C5C5';
+  Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+  const ctx = document.getElementById('bar-chart-perf').getContext('2d');
+  if (perfChart) perfChart.destroy();
+  perfChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: procs.map(p => p.id),
+      datasets: [
+        { label:'Waiting Time',    data:procs.map(p=>p.waiting),   backgroundColor:'rgba(74,130,128,0.8)',   borderRadius:4 },
+        { label:'Turnaround Time', data:procs.map(p=>p.turnaround),backgroundColor:'rgba(251,227,106,0.8)',  borderRadius:4 },
+        { label:'Response Time',   data:procs.map(p=>p.response),  backgroundColor:'rgba(165,197,197,0.75)', borderRadius:4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position:'bottom', labels:{ usePointStyle:true, pointStyle:'circle', padding:20, color:'#A5C5C5' } } },
+      scales: {
+        y: { beginAtZero:true, grid:{ color:'rgba(165,197,197,0.12)' }, border:{ color:'rgba(165,197,197,0.14)' } },
+        x: { grid:{ color:'rgba(165,197,197,0.12)' }, border:{ color:'rgba(165,197,197,0.14)' } }
+      }
+    }
+  });
 }
 
-function addGanttTick(axisContainer, time, leftPercent) {
-    const tick = document.createElement('div');
-    tick.className = 'gantt-tick';
-    tick.style.left = `${leftPercent}%`;
-    tick.innerText = time;
-    axisContainer.appendChild(tick);
-}
+// ══════════════════════════════════════════════════════
+//   SCROLL PROGRESS
+// ══════════════════════════════════════════════════════
+const progressBar = document.getElementById('scroll-progress');
+window.addEventListener('scroll', () => {
+  const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+  if (progressBar) progressBar.style.width = `${pct}%`;
+}, { passive: true });
 
-function renderCPUCharts(processes, avgWait, avgTurn, avgResp) {
-    const labels = processes.map(p => p.id);
-    const waitData = processes.map(p => p.waiting);
-    const turnData = processes.map(p => p.turnaround);
-    const respData = processes.map(p => p.response);
+// ══════════════════════════════════════════════════════
+//   SCROLL REVEAL
+// ══════════════════════════════════════════════════════
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
 
-    Chart.defaults.color = '#fff';
-    Chart.defaults.font.family = 'Inter';
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
 
-    const ctxBar = document.getElementById('bar-chart-perf').getContext('2d');
-    if (perfChartInstance) perfChartInstance.destroy();
+// ══════════════════════════════════════════════════════
+//   ACTIVE NAV LINK
+// ══════════════════════════════════════════════════════
+const sectionObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      // Support both old sidebar links and new nav-links
+      document.querySelectorAll('.sidebar a, .nav-links a').forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+      });
+    }
+  });
+}, { threshold: 0.25 });
 
-    perfChartInstance = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                { label: 'Waiting Time', data: waitData, backgroundColor: 'rgba(210, 153, 34, 0.8)' },
-                { label: 'Turnaround Time', data: turnData, backgroundColor: 'rgba(209, 116, 210, 0.8)' },
-                { label: 'Response Time', data: respData, backgroundColor: 'rgba(224, 86, 63, 0.8)' }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
-                x: { grid: { color: 'rgba(255,255,255,0.1)' } }
-            },
-            plugins: { legend: { position: 'bottom' } }
-        }
-    });
+document.querySelectorAll('section[id], div[id], header[id]').forEach(s => sectionObs.observe(s));
+
+// ══════════════════════════════════════════════════════
+//   PRESENTATION MODE
+// ══════════════════════════════════════════════════════
+const presBtn = document.getElementById('presentation-btn');
+let presMode = false;
+
+if (presBtn) {
+  presBtn.addEventListener('click', () => {
+    presMode = !presMode;
+    document.body.classList.toggle('pres-mode', presMode);
+    document.getElementById('pres-icon').textContent = presMode ? '✕' : '⛶';
+    document.getElementById('pres-label').textContent = presMode ? 'Exit' : 'Presentation';
+  });
 }
